@@ -3,7 +3,7 @@ from astropy.io import fits
 
 def getVis(datafile):
 
-   # Tool for extracting visibility data from a .FITS file.
+   # Tool for extracting visibility data from a miriad generated .FITS file.
    
     dvis  = fits.open(datafile)
     dreal = np.squeeze(dvis[0].data['Data'])[:,0]
