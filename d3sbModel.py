@@ -5,7 +5,8 @@ def d3sbModel(theta, uvsamples, bins):
 
 #    incl = theta[0]
 #    logw = theta[1:]
-    w = 10.**theta
+###    w = 10.**theta
+    w = theta
 
     u, v = uvsamples
 #    rho  = 1e3*np.sqrt((u*np.cos(incl*np.pi/180.))**2+v**2)
