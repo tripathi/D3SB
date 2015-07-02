@@ -35,7 +35,7 @@ def synthguess(a, b, nbins, filename):
     # flatten into a profile
     SBpim = pimage.flatten()
     rpim  = rim.flatten()
-    
+
     
     # -- DISCRETE DECOMPOSITION from PERFECT IMAGE
     # define the annular bins (as in d3sbFit.py)
@@ -50,8 +50,10 @@ def synthguess(a, b, nbins, filename):
     
     # calculate the average surface brightness in each bin
     SBdscp = np.zeros_like(cb)
+    print 'Binlow Binhigh AvgSB'
     for i in range(nbins):
-        SBdscp[i] = np.mean(SBpim[((rpim>a[i]) & (rpim<b[i]))])
+        SBdscp[i] = np.nanmean(SBpim[((rpim>a[i]) & (rpim<b[i]))])
+        print a[i], b[i],  SBdscp[i]
 
     # plot things
     ## plt.figure(2)
