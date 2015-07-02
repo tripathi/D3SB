@@ -100,18 +100,18 @@ for walker in range(nwalkers):
             print 'Rand', rand, 'Rand2', rand2
         p0[walker][rs] = theta0[rs] + rand
 
-#    plt.plot(p0[walker][:], '*')
-#plt.plot(theta0, 'ko', markersize=12, alpha=0.5)
-#plt.plot(np.log10(infile['wtrue']), 'k-o')
-#plt.show(block=False)
-#pdb.set_trace()
+    plt.plot(p0[walker][:], '*')
+plt.plot(theta0, 'ko', markersize=12, alpha=0.5)
+plt.plot(np.log10(infile['wtrue']), 'k-o')
+plt.show(block=False)
+pdb.set_trace()
 sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, threads=nthreads, args=[data, dbins])
 
 # run emcee
 tic = time.time()
-sampler.run_mcmc(p0, 5000)
+sampler.run_mcmc(p0, 1500)
 toc = time.time()
 print((toc-tic)/60.)
 
 # save the results in a binary file
-np.save('saved_results2_20percentdiff10_2_'+basename,sampler.chain)
+np.save('saved_results_20percentdiff10_'+basename,sampler.chain)
