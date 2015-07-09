@@ -13,9 +13,6 @@ def genmodelfits(p, filename):
 
   # - parameter values
   offs = [0.0,0.0]
-  incl = 0.                            # - disk inclination (deg from face-on)
-  PA   = 0.                             # - PA of major axis (deg E of N)
-  dpc  = 140.                           # - distance (pc)
   rin   = 0.1*AU
   ra_pc  = 68.1263333333	#(RA[0]+RA[1]/60.+RA[2]/3600.)*360./24.
   dec_pc = 17.5279638889	#(DEC[0]+DEC[1]/60.+DEC[2]/3600.)
@@ -24,7 +21,10 @@ def genmodelfits(p, filename):
   rout  = p[0]*AU
   ftot  = p[1]
   gam   = p[2]
-
+  incl  = p[3]              # - disk inclination (deg from face-on)
+  PA    = p[4]              # - PA of major axis (deg E of N)  
+  dpc   = p[5]              # - distance (pc)
+    
   # - radial grid
   nx = 1001                 # - preferrably an odd number
   ny = 1001                 # - best if this is square
@@ -38,10 +38,14 @@ def genmodelfits(p, filename):
   r = np.sqrt(xp*xp+1./np.cos(incl*np.pi/180.)**2*yp*yp)
 
   # - create image
-##  image = np.zeros_like(r)
+  image = np.zeros_like(r)
   ##  image[r<rout] = 1.
-  image = (r/rout)**(-gam)*np.exp(-(r/rout)**(2.-gam))
-  image[r<rin] = 0.
+#  image = (r/rout)**(-gam)*np.exp(-(r/rout)**(2.-gam))
+#  image[r<rin] = 0.
+  image[(r>0)&(r<rout)] = (rout/r[(r>0)&(r<rout)])**(gam+0.5)
+  rwid = 400. *AU
+  image[(r>rout)&(r<(0.8*rwid))] = (rout/r[(r>rout)&(r<(0.8*rwid))])**6.0
+  
  
 #  print np.sum(image), ftot/np.sum(image)
   image *= ftot/np.sum(image)

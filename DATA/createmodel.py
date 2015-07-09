@@ -14,10 +14,10 @@ args = parser.parse_args()
 rc = 75.
 ftot = 0.15
 gamma = 0.3
-incl = 0
+incl = 75.
 posangle = 0
 dsource = 140.
-base = 'test'
+base = 'blindknee_i75'
 basename = base+'_'+args.a.lower()
 
 
@@ -28,7 +28,7 @@ if args.a.lower() == 'alma':
     foo = mk_model(pars, oname=basename, dpc=dsource)
 elif args.a.lower() == 'carma':
     print 'Making model CARMA image'
-    p = [rc, ftot, gamma]
+    p = [rc, ftot, gamma, incl, posangle, dsource]
     foo = genmodelfits(p, basename)
 else:
     print "Array unknown. Please retry."
