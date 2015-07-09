@@ -71,7 +71,7 @@ def emceeinit(w0, nbins, nthreads, nsteps, savename, data, dbins, MPI=0):
 
     
     #Save the results in a binary file
-    np.save('/Users/anjalitripathi/Downloads/mc_'+savename,sampler.chain)
+    np.save('mc_'+savename,sampler.chain)
     
     if MPI:      
         #Close the processes.
@@ -89,27 +89,34 @@ def emceeinit(w0, nbins, nthreads, nsteps, savename, data, dbins, MPI=0):
 #################
 
 #Input files
-basename = 'blind1' #Name common to all files in this run
-hiresvis = basename + '.340GHz.vis.npz' #Model visibilities
-synthimg = basename + '.combo.noisy.image.fits' #Synthesized image, for guesses
+ALMA = 0 #Is this an ALMA data file
+basename = 'blindknee_carma' #Name common to all files in this run
+if ALMA:
+    hiresvis = basename + '.340GHz.vis.npz' #Model visibilities
+    synthimg = basename + '.combo.noisy.image.fits' #Synthesized image, for guesses
+else:    
+    hiresvis = basename + '.vis.fits' #Model visibilities
+    synthimg = basename + '_1mm.fits' #Synthesized image, for guesses
 
 #Parameters
-numbins = 10 
-binmin = 0.01 #Where to start bins in arcsec, but will be cutoff at rin
-binmax = 1.5 #Outer bin edge in arcsec
+numbins = 20 
+binmin = 0.02 #Where to start bins in arcsec, but will be cutoff at rin
+binmax = 1. #Outer bin edge in arcsec
 dpc = 140. #Distance to source in pc
-rin = 0.01/dpc #Inner cutoff in arcsec
+rin = 0.1/dpc #Inner cutoff in arcsec
 
 #Emcee setup parameters
-nsteps = 5 #Number of steps to take
+nsteps = 3000 #Number of steps to take
 nthreads = 6 #Number of threads
 MPIflag = 0 #Use MPI (1) or not (0)
 
 
 
 # Get data
-data = getVisALMA('DATA/'+hiresvis)
-## data = getVis('DATA/'+hiresvis) #Used for CARMA visibilities.
+if ALMA:
+    data = getVisALMA('DATA/'+hiresvis)
+else:
+    data = getVis('DATA/'+hiresvis) #Used for CARMA visibilities.
 
 #Corrupt/change data as needed
 ## u, v, dreal, dimag, dwgt = data
