@@ -3,14 +3,14 @@ import scipy.special as sc
 
 def d3sbModel(theta, uvsamples, bins):
 
-#    incl = theta[0]
-#    logw = theta[1:]
-###    w = 10.**theta
-    w = theta
+    incl = np.deg2rad(theta[0]) #Projected Inclination
+    w = theta[1:] #Ring bin amplitudes
 
     u, v = uvsamples
-#    rho  = 1e3*np.sqrt((u*np.cos(incl*np.pi/180.))**2+v**2)
-    rho = 1e3*np.sqrt(u**2+v**2)
+    #udeproj = u * np.cos(incl) #Deproject
+    vdeproj = v * np.cos(incl) #Deproject
+    #    rho  = 1e3*np.sqrt((u*np.cos(incl*np.pi/180.))**2+v**2)
+    rho = 1e3*np.sqrt(vdeproj**2+u**2)
 
     rin, b = bins
 

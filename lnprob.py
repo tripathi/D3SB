@@ -5,19 +5,25 @@ import matplotlib.pyplot as plt
 
 def lnprob(theta, data, bins):
 
-    if (theta<-20).any() or (theta>20).any():
+    incl = theta[0]
+    weights = theta[1:]
+
+    if (incl >90.) or (incl <0):
+        return -np.inf  
+                          
+    if (weights<-20).any() or (weights>20).any():
         return -np.inf
 
-    if (theta<0).any():
+    if (weights<0).any():
         return -np.inf
 
-##     if not (np.allclose(theta, np.sort(theta)[::-1])):
+##     if not (np.allclose(weights, np.sort(weights)[::-1])):
 ## #        print 'Not monotonic'
 ##         return -np.inf
 
-    u, v, dreal, dimag, dwgt = data
+    u, v, dreal, dimag, dwgt = data    
     uvsamples = u, v
-
+    
     mreal = d3sbModel(theta, uvsamples, bins)
     mimag = np.zeros_like(u)
 
