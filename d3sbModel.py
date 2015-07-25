@@ -3,6 +3,8 @@ import scipy.special as sc
 
 def d3sbModel(theta, uvsamples, bins):
 
+#    incl = 0.
+#    w = theta
     incl = np.deg2rad(theta[0]) #Projected Inclination
     w = theta[1:] #Ring bin amplitudes
 
