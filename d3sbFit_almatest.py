@@ -46,7 +46,7 @@ def emceeinit(w0, incl, nbins, nthreads, nsteps, savename, data, dbins, MPI=0):
         for rs in radii:
             rand = np.random.uniform(-(w0[rs]*scale*sizecorr), (w0[rs]*scale*sizecorr))
             p0[walker][rs+1] = w0[rs] + rand
-        p0[walker][0] = incl+np.random.uniform(0.,90.)
+        p0[walker][0] = incl+np.random.uniform(0.85*incl,1.15*incl) #When adding back in, make prev statement rs+1
             
     #Write emcee perturbation params to log file
     f = open('emceerand.log', 'a')
@@ -93,7 +93,7 @@ if __name__ == "__main__":
 
     #Input files
     ALMA = 1 #Is this an ALMA data file
-    basename = 'blind2' #Name common to all files in this run
+    basename = 'blind2_fo' #Name common to all files in this run
     if ALMA:
         hiresvis = basename + '.340GHz.vis.npz' #Model visibilities
         synthimg = basename + '.combo.noisy.image.fits' #Synthesized image, for guesses
@@ -102,15 +102,15 @@ if __name__ == "__main__":
         synthimg = basename + '_1mm.fits' #Synthesized image, for guesses
 
     #Parameters
-    numbins = 15 
+    numbins = 20 
     binmin = 0.01 #Where to start bins in arcsec, but will be cutoff at rin
-    binmax = .6 #Outer bin edge in arcsec
+    binmax = .8 #Outer bin edge in arcsec
     dpc = 140. #Distance to source in pc
     rin = 0.1/dpc #Inner cutoff in arcsec
-    inclguess = 45. #Inclination in degrees
+    inclguess = 0. #Inclination in degrees
 
     #Emcee setup parameters
-    nsteps = 3500 #Number of steps to take
+    nsteps = 10000 #Number of steps to take
     nthreads = 6 #Number of threads
     MPIflag = 0 #Use MPI (1) or not (0)
 
