@@ -9,10 +9,10 @@ def d3sbModel(theta, uvsamples, bins):
     w = theta[1:] #Ring bin amplitudes
 
     u, v = uvsamples
-    #udeproj = u * np.cos(incl) #Deproject
-    vdeproj = v * np.cos(incl) #Deproject
-    #    rho  = 1e3*np.sqrt((u*np.cos(incl*np.pi/180.))**2+v**2)
-    rho = 1e3*np.sqrt(vdeproj**2+u**2)
+    udeproj = u * np.cos(incl) #Deproject
+    #vdeproj = v * np.cos(incl) #Deproject
+    rho  = 1e3*np.sqrt(udeproj**2+v**2)
+    #rho = 1e3*np.sqrt(vdeproj**2+u**2)
 
     rin, b = bins
 
