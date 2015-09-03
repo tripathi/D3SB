@@ -45,8 +45,12 @@ def emceeinit(w0, incl, nbins, nthreads, nsteps, savename, data, dbins, MPI=0):
     for walker in range(nwalkers):
         for rs in radii:
             rand = np.random.uniform(-(w0[rs]*scale*sizecorr), (w0[rs]*scale*sizecorr))
+            if rs < 3:
+                rand = np.random.uniform(0, 2.*w0[rs])
             p0[walker][rs+1] = w0[rs] + rand
+#        p0[walker][0] = np.random.uniform(0, .01) #When adding back in, make prev statement rs+1
         p0[walker][0] = incl+np.random.uniform(0.85*incl,1.15*incl) #When adding back in, make prev statement rs+1
+
             
     #Write emcee perturbation params to log file
     f = open('emceerand.log', 'a')
@@ -59,6 +63,9 @@ def emceeinit(w0, incl, nbins, nthreads, nsteps, savename, data, dbins, MPI=0):
         sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[data, dbins], pool=pool)
     else:
         sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, threads=nthreads, args=[data, dbins])
+
+    print 'Nbins, Ndim', nbins, ndim
+    print 'Dbins', dbins
 
     #Run emcee, and time it
     tic = time.time()
@@ -93,7 +100,7 @@ if __name__ == "__main__":
 
     #Input files
     ALMA = 1 #Is this an ALMA data file
-    basename = 'blind2_fo' #Name common to all files in this run
+    basename = 'gap_fo' #Name common to all files in this run
     if ALMA:
         hiresvis = basename + '.340GHz.vis.npz' #Model visibilities
         synthimg = basename + '.combo.noisy.image.fits' #Synthesized image, for guesses
@@ -102,16 +109,16 @@ if __name__ == "__main__":
         synthimg = basename + '_1mm.fits' #Synthesized image, for guesses
 
     #Parameters
-    numbins = 20 
+    numbins = 40 
     binmin = 0.01 #Where to start bins in arcsec, but will be cutoff at rin
-    binmax = .8 #Outer bin edge in arcsec
+    binmax = .75 #Outer bin edge in arcsec
     dpc = 140. #Distance to source in pc
     rin = 0.1/dpc #Inner cutoff in arcsec
     inclguess = 0. #Inclination in degrees
 
     #Emcee setup parameters
-    nsteps = 10000 #Number of steps to take
-    nthreads = 6 #Number of threads
+    nsteps = 8000 #Number of steps to take
+    nthreads = 12 #Number of threads
     MPIflag = 0 #Use MPI (1) or not (0)
 
 
@@ -161,7 +168,11 @@ if __name__ == "__main__":
         b = np.zeros(nbins)
 
         #Set bin locations
-        b = np.linspace(binmin, binmax, num=nbins)
+        btmp = np.linspace(binmin, binmax, num=nbins)
+        b = np.concatenate([btmp[btmp<0.35], np.array([0.35, 0.45, 0.6, binmax])])
+        numbins = np.shape(b) #Changing number of bins
+        nbins = numbins[0]
+        print numbins, b
         a = np.roll(b, 1)
         a[0] = rin
         cb = 0.5*(a+b)
