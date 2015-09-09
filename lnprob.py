@@ -2,19 +2,26 @@ import numpy as np
 from d3sbModel import d3sbModel
 import pdb
 import matplotlib.pyplot as plt
+from numpy.polynomial.polynomial import polyval
 
 def lnprob(theta, data, bins):
 
 #    rcoeff = theta[0]
     incl = theta[0]
-    weights = theta[1:]
+    pcoeff = theta[1:]
+    rin, b = bins
+    a = np.roll(b, 1)
+    a[0] = rin
+    cb = 0.5*(a+b)
+    weights = polyval(cb, pcoeff)
+    thetamodel =  np.concatenate([np.array([incl]), weights])
 
 #    if (rcoeff <=0) or (rcoeffn >0.01):
-#        return -np.inf  
+#        return -np.inf
 
     if (incl >90.) or (incl <0):
-        return -np.inf  
-                          
+        return -np.inf
+
     if (weights<-20).any() or (weights>20).any():
         return -np.inf
 
@@ -25,10 +32,10 @@ def lnprob(theta, data, bins):
 #        print'Not monotonic'
 #        return -np.inf
 
-    u, v, dreal, dimag, dwgt = data    
+    u, v, dreal, dimag, dwgt = data
     uvsamples = u, v
-    
-    mreal = d3sbModel(theta, uvsamples, bins)
+
+    mreal = d3sbModel(thetamodel, uvsamples, bins)
     mimag = np.zeros_like(u)
 
 

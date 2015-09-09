@@ -10,7 +10,7 @@ from getVisALMA import getVisALMA
 from lnprob import lnprob
 from d3sbModel import d3sbModel
 from deprojectVis import deprojectVis
-
+from numpy.polynomial import polynomial as P
 
 def inclfix(theta):
     incl = np.mod(theta, 360.)
@@ -56,9 +56,10 @@ def knee(r, rc, gam, A1, A2):
 nbinsinit = 40
 nbins=22
 #14
-ndim = nbins+1
-nwalkers = 4.*nbins
-plotchains = 0#Plot individual chains or not
+norders = 5
+ndim = norders+1
+nwalkers = 4.*ndim
+plotchains = 1#Plot individual chains or not
 plottriangle = 0 #Make triangle plot or not
 binmin = 0.01
 binmax = 0.75
@@ -67,9 +68,10 @@ binmax = 0.75
 dpc = 140. 
 
 #Find appropriate files
-basename = 'gap_fo'
-#blind2_fo'
-note = 'gaprcoeff_c_c_c_c'
+basename = 'blind2_fo'
+#'gap_fo'
+note = 'poly25k_5orders'
+#gaprcoeff_c_c_c_c'
 #fracdivplus1'
 #divpenalty'
 #onlyturns_norcoeff'
@@ -109,15 +111,16 @@ hiresvis = 'DATA/'+basename+'.340GHz.vis.npz' #Model visibilities
 #
 data = getVisALMA(hiresvis)
 #ALMA('DATA/'+hiresvis)
-infilecorr = np.load('opt_'+basename+'_linear_'+str(nbins)+'.npz')
+infilecorr = np.load('opt_'+basename+'_linearpoly_'+str(nbins)+'.npz')
 
 #Fix inclinations
 #chainw0[:,:,0] = inclfix(chainw0[:,:,0]).reshape(chainw0[:,:,0].shape)*180./np.pi
 
 #Flatten chain
 cstart = 0
-samplesw0 = chainw0[:, cstart:, :].reshape((-1,ndim))
-sampleswonly = chainw0[:,cstart:, 1:].reshape((-1,ndim-1))
+coeffsw0 = chainw0[:, cstart:, :].reshape((-1,ndim))
+coeffswonly = chainw0[:,cstart:, 1:].reshape((-1,ndim-1))
+
 
 #Set bins
 print 'Warning: Using hardcoded bins for Chi^2 calc'
@@ -134,12 +137,21 @@ cb = 0.5*(a+b)
 dbins = rin, b
 herr = (b-a)/2. #Bin extent (horiz. errorbar)
 
+print "hello", cb - infilecorr['cb']
 
 #Get percentile information - here 1 sigma
-stuff = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),zip(*np.percentile(samplesw0, [16, 50, 84],axis=0)))
-vcentral = zip(*stuff)[0]
-vupper = zip(*stuff)[1]
-vlower = zip(*stuff)[2]
+samplesw0 = chainw0[:, cstart:, :].reshape((-1,ndim))
+sampleswonly = chainw0[:,cstart:, 1:].reshape((-1,ndim-1))
+
+stuff = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),zip(*np.percentile(sampleswonly, [16, 50, 84],axis=0)))
+pvcentral = np.array(zip(*stuff)[0])
+pvupper = np.array(zip(*stuff)[1])
+pvlower = np.array(zip(*stuff)[2])
+
+vcentral = P.polyval(cb, pvcentral)
+vupper = P.polyval(cb, pvcentral+pvupper) - vcentral
+vlower = P.polyval(cb, pvcentral-pvlower)*-1. + vcentral
+
 
 #In case average values are <0 (they shouldn't be)
 #look at >=0 results
@@ -153,12 +165,12 @@ rr = deepcopy(infilecorr['cb'])
 himage = np.zeros_like(rr)
 
 #gap
-rc = 50./dpc
-gam=0.5
-ftot=0.15
+#rc = 50./dpc
+#gam=0.5
+#ftot=0.15
 
-himage[rr>0] = (rc/rr[rr>0])*np.exp(-(rr[rr>0]/rc)**(2.-gam))
-himage[(rr>25./dpc)*(rr<35./dpc)] *= 0.1
+#himage[rr>0] = (rc/rr[rr>0])*np.exp(-(rr[rr>0]/rc)**(2.-gam))
+#himage[(rr>25./dpc)*(rr<35./dpc)] *= 0.1
 
 
 #blind1
@@ -170,12 +182,12 @@ himage[(rr>25./dpc)*(rr<35./dpc)] *= 0.1
 #himage[(rr>rc)] = (rc/rr[(rr>rc)])**6.0
 
 #blind2
-#rc = 55./dpc
-#gam = 0.5
-#ftot = 0.12
-#himage = np.zeros_like(rr)
-#himage[(rr>0)&(rr<rc)] = (rc/rr[(rr>0)&(rr<rc)])**(gam+0.5)
-#himage[(rr>rc)] = (rc/rr[(rr>rc)])**4.0
+rc = 55./dpc
+gam = 0.5
+ftot = 0.12
+himage = np.zeros_like(rr)
+himage[(rr>0)&(rr<rc)] = (rc/rr[(rr>0)&(rr<rc)])**(gam+0.5)
+himage[(rr>rc)] = (rc/rr[(rr>rc)])**4.0
 #image =0.0824975*himage
 #ftot*himage/np.sum(himage)
 image = ftot*himage/np.sum(himage*np.pi*(b**2 - a**2))
@@ -205,13 +217,14 @@ if plotchains:
     chainxall = np.arange(chainw0.shape[1]-cstart)/1000.
     fig = plt.figure(1)
 
-    for idim in np.arange(ndim):
+    for idim in np.arange(ndim-1):
         for iw in np.arange(ndim*4):
-            plt.subplot(6,4,idim+1)
+            plt.subplot(3,2,idim+1)
             plt.plot(chainxall, chainw0[iw,cstart:, idim], 'b')
-            plt.plot(chainx, [vcentral[idim], vcentral[idim]], 'k')
-            plt.plot(chainx, [vcentral[idim]-vlower[idim], vcentral[idim]-vlower[idim]], 'r')
-            plt.plot(chainx, [vcentral[idim]+vupper[idim], vcentral[idim]+vupper[idim]], 'g')
+            plt.plot(chainx, [pvcentral[idim], pvcentral[idim]], 'k')
+            plt.plot(chainx, [infilecorr['coeffs'][idim], infilecorr['coeffs'][idim]], 'm', alpha = 0.2)
+            plt.plot(chainx, [pvcentral[idim]-pvlower[idim], pvcentral[idim]-pvlower[idim]], 'r')
+            plt.plot(chainx, [pvcentral[idim]+pvupper[idim], pvcentral[idim]+pvupper[idim]], 'g')
 
     fig.savefig("chains_"+basename+"_"+note+".png")
 
@@ -245,7 +258,7 @@ pdb.set_trace()
 #Plot cumulative flux
 
 ftest = np.pi*(b**2 - a**2)
-fbin = np.asarray(vcentral[1:])*np.pi*(b**2 - a**2)
+fbin = np.asarray(vcentral)*np.pi*(b**2 - a**2)
 #fbin = np.asarray(vcentral)*np.pi*(b**2 - a**2)
 fbinmean = infilecorr['w0']*np.pi*(b**2 - a**2)
 cumf = np.cumsum(fbin)
@@ -257,13 +270,13 @@ fig10.savefig("cumulative_"+basename+"_"+note+".png")
   
 #Plot surface brightness
 fig6 = plt.figure(6)
-#for iw in np.arange(ndim*4):
-#    plt.plot(infilecorr['cb'],chainw0[iw,0,1:], '-co', alpha = 0.1) #Plot starting ball
+for iw in np.arange(ndim*4):
+    plt.plot(infilecorr['cb'],P.polyval(infilecorr['cb'],chainw0[iw,0,1:]), '-co', alpha = 0.1) #Plot starting ball
 plt.plot(rr, image, '-ks', alpha = 0.5) #Plot truth    
 #plt.errorbar(infilecorr['cb'], vcentral, yerr = [vlower, vupper], xerr = herr, fmt='.b', elinewidth=1.5)
-plt.errorbar(infilecorr['cb'], vcentral[1:], yerr = [vlower[1:], vupper[1:]], xerr = herr, fmt='.b', elinewidth=1.5)
+plt.errorbar(infilecorr['cb'], vcentral[0:], yerr = [vlower[0:], vupper[0:]], xerr = herr, fmt='.b', elinewidth=1.5)
 plt.plot(infilecorr['cb'], infilecorr['w0'], 'o', markeredgecolor='r', markerfacecolor='None')
-
+plt.plot(infilecorr['cb'], P.polyval(infilecorr['cb'], infilecorr['coeffs']), '*m')
 
     
 plt.title(str(nbins)+' bins') #Hardcoded
@@ -282,10 +295,10 @@ fig7 = plt.figure(7)
 u, v, dreal, dimag, dwgt = data
 
 newbins = np.arange(5., 2000., 50.)
-visout = deprojectVis(hiresvis, newbins, incl=vcentral[0], PA=90., offset=[0., 0.], nu=340e9, wsc=1., fitsfile=0)
+visout = deprojectVis(hiresvis, newbins, incl=0, PA=90., offset=[0., 0.], nu=340e9, wsc=1., fitsfile=0)
 onewbins, obre, obim, ober, Ruvp, realp = visout
 
-vproj = v*np.cos(vcentral[0]*(np.pi/180.))
+vproj = v*np.cos(0*(np.pi/180.))
 #uprojt = u*np.cos(75.*np.pi/180.)
 rho = np.sqrt(u**2+v**2)
 rind = rho.argsort()
@@ -295,7 +308,7 @@ rhoproj = np.sqrt(vproj**2+u**2)
 uvsamples = u, v
 #uvsamplest = uprojt, v
 
-vis = d3sbModel(vcentral, uvsamples, dbins)
+vis = d3sbModel(np.concatenate([[0],vcentral]), uvsamples, dbins)
 vist = d3sbModel(np.concatenate([[0],image]), uvsamples, dbins)
 
 plt.subplot(2,1,1)

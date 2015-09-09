@@ -12,17 +12,18 @@ from lnprob import lnprob
 from opt_func import opt_func
 import emcee
 from emcee.utils import MPIPool
+from numpy.polynomial import polynomial as P
 
 #"""
-#Usage: 
+#Usage:
 #This file has 2 functions: the main and the emcee driver.
 #Inputs are at the top of the main.
 #Hardcoded into the emcee driver are: nwalkers, sizecorr, scale.
 #"""
 
-def emceeinit(w0, incl, nbins, nthreads, nsteps, savename, data, dbins, MPI=0):
+def emceeinit(w0, incl, nbins, nthreads, nsteps, savename, data, dbins, MPI=0, ncoeff = 0):
     """Emcee driver function"""
-    
+
     #Initialize the MPI-based pool used for parallelization.
     if MPI:
         print MPI
@@ -31,27 +32,29 @@ def emceeinit(w0, incl, nbins, nthreads, nsteps, savename, data, dbins, MPI=0):
                 # Wait for instructions from the master process.
                 pool.wait()
                 sys.exit(0)
-    
+
     #Setup
-    ndim = nbins + 1
+#    ndim = nbins + 1
+    ndim = ncoeff + 1
     nwalkers = 4*ndim
     p0 = np.zeros((nwalkers, ndim))
-    print 'Nbins is now', nbins
-    
+#    print 'Nbins is now', nbins
+
     #Initialize walkers
     radii = np.arange(nbins)
     sizecorr = 1 #Currently Hardcoded; Scaling factor to treat different radii differently
-    scale = 0.2 #Currently hardcoded; Fraction of parameter by which it can vary
+    scale = 0.3 #Currently hardcoded; Fraction of parameter by which it can vary
     for walker in range(nwalkers):
-        for rs in radii:
+        #for rs in radii:
+        for rs in np.arange(ncoeff):
             rand = np.random.uniform(-(w0[rs]*scale*sizecorr), (w0[rs]*scale*sizecorr))
-            if rs < 3:
-                rand = np.random.uniform(0, 2.*w0[rs])
+        #     if rs < 3:
+        #         rand = np.random.uniform(0, 2.*w0[rs])
             p0[walker][rs+1] = w0[rs] + rand
 #        p0[walker][0] = np.random.uniform(0, .01) #When adding back in, make prev statement rs+1
         p0[walker][0] = incl+np.random.uniform(0.85*incl,1.15*incl) #When adding back in, make prev statement rs+1
 
-            
+
     #Write emcee perturbation params to log file
     f = open('emceerand.log', 'a')
     FORMAT = '%m-%d-%Y-%H%M'
@@ -72,17 +75,17 @@ def emceeinit(w0, incl, nbins, nthreads, nsteps, savename, data, dbins, MPI=0):
     sampler.run_mcmc(p0, nsteps)
     toc = time.time()
 
-    #Display and record run information    
+    #Display and record run information
     print 'Elapsed emcee run time:', ((toc-tic)/60.)
     print 'Acceptance:', sampler.acceptance_fraction
     f.write(' ,'+str(round((toc-tic)/60., 2))+', '+str(np.round(np.mean(sampler.acceptance_fraction),2))+'\n')
     f.close()
 
-    
+
     #Save the results in a binary file
     np.save('mc_'+savename,sampler.chain)
-    
-    if MPI:      
+
+    if MPI:
         #Close the processes.
         pool.close()
 
@@ -92,24 +95,25 @@ def emceeinit(w0, incl, nbins, nthreads, nsteps, savename, data, dbins, MPI=0):
     if not MPIflag:
         pdb.set_trace()
 
-                
+
 #################
-# MAIN FUNCTION # 
+# MAIN FUNCTION #
 #################
 if __name__ == "__main__":
 
     #Input files
     ALMA = 1 #Is this an ALMA data file
-    basename = 'gap_fo' #Name common to all files in this run
+    basename = 'blind2_fo'
+    #gap_fo' #Name common to all files in this run
     if ALMA:
         hiresvis = basename + '.340GHz.vis.npz' #Model visibilities
         synthimg = basename + '.combo.noisy.image.fits' #Synthesized image, for guesses
-    else:    
+    else:
         hiresvis = basename + '.vis.fits' #Model visibilities
         synthimg = basename + '_1mm.fits' #Synthesized image, for guesses
 
     #Parameters
-    numbins = 40 
+    numbins = 40
     binmin = 0.01 #Where to start bins in arcsec, but will be cutoff at rin
     binmax = .75 #Outer bin edge in arcsec
     dpc = 140. #Distance to source in pc
@@ -117,10 +121,10 @@ if __name__ == "__main__":
     inclguess = 0. #Inclination in degrees
 
     #Emcee setup parameters
-    nsteps = 8000 #Number of steps to take
+    nsteps = 25000 #Number of steps to take
     nthreads = 12 #Number of threads
     MPIflag = 0 #Use MPI (1) or not (0)
-
+    norders = 5 #Number of orders to use for polynomial
 
 
     # Get data
@@ -133,7 +137,7 @@ if __name__ == "__main__":
     ## u, v, dreal, dimag, dwgt = data
     ## mu = 0
     ## sigma = 1./np.sqrt(dwgt)
-    ## dwgt = dwgt * 10000. 
+    ## dwgt = dwgt * 10000.
     ## ##replace existing data with changed data
     ## data = u,v,dreal, dimag, dwgt
 
@@ -191,35 +195,40 @@ if __name__ == "__main__":
 
         #Optimization using Downhill Simplex
         print "Entering minimization"
-        ## opt2 = minimize(opt_func, wg, args=(data, dbins), method='Nelder-Mead', options={'maxiter': 100000, 'maxfev': 100000})
-        ## w02 = (opt2.x)
-        ## print(w02)
-        ## print opt2
-        ## ## plt.plot(cb, wg, 'rs', markersize=12, alpha=0.4)
-        ## ## #    plt.plot(cb, wtrue, 'k', cb, w0, 'bo', w02, 'co')
-        ## ## plt.plot(rvals, wtrueall, 'k', cb, w0, 'bo', cb, w02, 'co')
-        ## ## plt.xlim(0.013,4.1)
-        ## ## #    plt.ylim(1e-9, 5)
-        ## ## ax = plt.gca()
-        ## ## #    ax.set_yscale('log')
-        ## ## #    ax.set_xscale('log')    
-        ## ## plt.show(block=False)
+        #Initial polynomial fit
+        coeffs = P.polyfit(cb, wg, norders-1)
+        # plt.plot(cb, wg, 'rs', cb, P.polyval(cb, coeffs), 'b')
+
+        # opt2 = minimize(opt_func, wg, args=(data, dbins), method='Nelder-Mead', options={'maxiter': 100000, 'maxfev': 100000})
+        # w02 = (opt2.x)
+        # print(w02)
+        # print opt2
+        # ## plt.plot(cb, wg, 'rs', markersize=12, alpha=0.4)
+        # ## #    plt.plot(cb, wtrue, 'k', cb, w0, 'bo', w02, 'co')
+        # ## plt.plot(rvals, wtrueall, 'k', cb, w0, 'bo', cb, w02, 'co')
+        # ## plt.xlim(0.013,4.1)
+        # ## #    plt.ylim(1e-9, 5)
+        # ax = plt.gca()
+        # ax.set_yscale('log')
+        # ax.set_xscale('log')
+        # plt.show(block=False)
+        # pdb.set_trace()
         print "Left minimization"
 
         #Save initial guesses to file
-        filename = 'opt_'+basename+'_linear_'+str(nbins)
+        filename = 'opt_'+basename+'_linearpoly_'+str(nbins)
 
         w0[w0<0]=0 #Don't save negative results
         ##  w02[w02<0]=0
 
-        np.savez(filename, cb=cb, wg=wg,  w0=w0)
+        np.savez(filename, cb=cb, wg=wg,  w0=w0, coeffs=coeffs)
         #pdb.set_trace()
 
 
     #Continue from pre-optimized values for last bin choice
     #Add for loop back in, if multiple bin runs desired
 
-    infile = np.load('opt_'+basename+'_linear_'+str(nbins)+'.npz')
+    infile = np.load('opt_'+basename+'_linearpoly_'+str(nbins)+'.npz')
 
     #Print initial guesses
     ##print 'Truth ', infile['wtrue']
@@ -231,13 +240,12 @@ if __name__ == "__main__":
     if not MPIflag:
         notes = raw_input('Notes? Only give a short phrase to append to filenames\n')
     else:
-        notes=''    
+        notes=''
     savename = basename+'_'+str(nbins)+'_'+notes
 
 
     #Run emcee
-    emceeinit(infile['w0'], inclguess, nbins, nthreads, nsteps, savename+'_mean', data, dbins, MPIflag)
+    emceeinit(coeffs, inclguess, nbins, nthreads, nsteps, savename+'_mean', data, dbins, MPIflag, norders)
+    #emceeinit(infile['w0'], inclguess, nbins, nthreads, nsteps, savename+'_mean', data, dbins, MPIflag, norders)
     ## emceeinit(infile['wtrue'], nbins, nthreads, nsteps, savename+'_model')
     ## emceeinit(infile['w02'], nbins, nthreads, nsteps, savename+'_simplex')
-
-    
