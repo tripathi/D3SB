@@ -17,16 +17,22 @@ def calccovar(binsin, ain, lin):
     l: correlation length
     '''
     nbins = binsin.shape[0]
-    C = np.fromfunction(kexp2,(nbins,nbins), bins=binsin, a=ain, l=lin, dtype = np.int)
-    return C
-    
+    cov = np.fromfunction(kexp2,(nbins,nbins), bins=binsin, a=ain, l=lin, dtype = np.int)
+    return cov
+
 def calcprior(weights, bins, a, l):
     '''
     Invert covariance matrix and take the product with the weights
     vectors
     '''
-    print 'In calcprior'
-    C = calccovar(bins, a, l)
+
+    rin, b = bins
+    cba = np.roll(b, 1)
+    cba[0] = rin
+    cb = 0.5*(cba+b)
+
+    C = calccovar(cb, a, l)
+
 
     #Cholesky factorization, to invert it
     #cholfac = np.linalg.cholesky(C)
@@ -37,12 +43,21 @@ def calcprior(weights, bins, a, l):
 
     prior = np.dot(np.dot(weights,Cinv), weights) #Check that this is correct
     (sign,logdet) = np.linalg.slogdet(C)
-    if (sign < 0):
-        print "Warning - The determinant is negative, so something has gone wrong"
-         
+    # maxneg = 250.
+    #if (sign < 0):
+    #     if (logdet > maxneg):
+    #         logdet = maxneg
+    #     else:
+        #print "Warning - The determinant is negative, so something has gone wrong"
+    #print sign, logdet
+
+    # plt.imshow(C, interpolation='nearest', cmap='Blues')
+    # plt.colorbar()
+    # plt.savefig('tmp'+str(np.around(logdet, decimals=1))+'.png')
+    # plt.clf()
 #    result = prior + log stuff
 #RtC-1R _ ln det C + N ln 2pi
-    result = prior + logdet + bins.shape[0]*np.log(2.*np.pi)
+    result = prior + logdet + cb.shape[0]*np.log(2.*np.pi)
 
     return result
 
@@ -58,4 +73,3 @@ def priortest():
 
 
     return
-

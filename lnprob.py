@@ -2,19 +2,28 @@ import numpy as np
 from d3sbModel import d3sbModel
 import pdb
 import matplotlib.pyplot as plt
+import gpprior as gp
 
 def lnprob(theta, data, bins):
 
 #    rcoeff = theta[0]
-    incl = theta[0]
-    weights = theta[1:]
+    #incl = theta[0]
+    incl = 0.
+    a = theta[0]
+    l = theta[1]
+    weights = theta[2:]
 
 #    if (rcoeff <=0) or (rcoeffn >0.01):
-#        return -np.inf  
+#        return -np.inf
 
-    if (incl >90.) or (incl <0):
-        return -np.inf  
-                          
+
+#    if (incl >90.) or (incl <0):
+#        return -np.inf
+
+    if (l<np.amin(bins[1:])):
+        #necessary? or l>np.amax(bins[1:])
+        return -np.inf
+
     if (weights<-20).any() or (weights>20).any():
         return -np.inf
 
@@ -25,26 +34,22 @@ def lnprob(theta, data, bins):
 #        print'Not monotonic'
 #        return -np.inf
 
-    u, v, dreal, dimag, dwgt = data    
+    u, v, dreal, dimag, dwgt = data
     uvsamples = u, v
-    
-    mreal = d3sbModel(theta, uvsamples, bins)
+
+    mreal = d3sbModel(theta[2:], uvsamples, bins)
     mimag = np.zeros_like(u)
 
 
     chi2 = np.sum(dwgt*(dreal-mreal)**2) + np.sum(dwgt*(dimag-mimag)**2)
-    dw = np.diff(weights)
-    penalty = np.sum(dw[1:]*dw[:-1] <0)
-    rcoeff = 0.001
-    regularization =float(rcoeff*np.shape(dreal)[0]/np.shape(weights)[0])
+##    dw = np.diff(weights)
+    incl = 0.
+#    penal0y = np.sum(dw[1:]*dw[:-1] <0)
+#    rcoef1 = 0.001
+#    regularization =float(rcoeff*np.shape(dreal)[0]/np.shape(weights)[0])
+#    chi2tot = chi2+regularization*penalty
+    lnp = -0.5*chi2
+    prior = -0.5*gp.calcprior(weights, bins, a, l)
+    posterior = lnp + prior
 
-#    print 'Chi2, regularized/chi2', chi2, penalty*regularization/chi2
-#    print 'rcoeff, Penalty term', rcoeff, regularization
-#    print 'total', chi2+penalty*regularization
-
-    chi2tot = chi2+regularization*penalty
-#*(penalty+1)/(np.shape(weights)[0]+1)
-#/(np.shape(weights)[0] - penalty)
-#*regularization
-    lnp = -0.5*chi2tot
-    return lnp
+    return posterior
