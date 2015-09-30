@@ -20,8 +20,7 @@ def lnprob(theta, data, bins):
 #    if (incl >90.) or (incl <0):
 #        return -np.inf
 
-    if (l<np.amin(bins[1:])):
-        #necessary? or l>np.amax(bins[1:])
+    if (l<np.amin(np.diff(bins[1:])) or l>np.amax(np.diff(bins[1:]))):
         return -np.inf
 
     if (weights<-20).any() or (weights>20).any():
