@@ -33,17 +33,26 @@ def lnprob(theta, data, bins):
 #        print'Not monotonic'
 #        return -np.inf
 
-    u, v, dreal, dimag, dwgt = data
-    uvsamples = u, v
+    # u, v, dreal, dimag, dwgt = data
+    # uvsamples = u, v
 
-    mreal = d3sbModel(theta[2:], uvsamples, bins)
+    #This used to be in d3sbModel
+    rin, b = bins
+    w = theta[2:]
+    wbin = np.append(np.concatenate([np.array([0.0]), w]), 0.)
+    ww = wbin-np.roll(wbin, -1)
+    wgt = np.delete(ww, b.size+1)
+
+    mreal = np.dot(2.*np.pi*rbin**2*wgt, jinc)
+
+    #mreal = d3sbModel(theta[2:], uvsamples, bins)
     mimag = np.zeros_like(u)
 
 
     chi2 = np.sum(dwgt*(dreal-mreal)**2) + np.sum(dwgt*(dimag-mimag)**2)
 ##    dw = np.diff(weights)
-    incl = 0.
-#    penal0y = np.sum(dw[1:]*dw[:-1] <0)
+
+#    penalyy = np.sum(dw[1:]*dw[:-1] <0)
 #    rcoef1 = 0.001
 #    regularization =float(rcoeff*np.shape(dreal)[0]/np.shape(weights)[0])
 #    chi2tot = chi2+regularization*penalty

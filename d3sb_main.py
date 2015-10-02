@@ -13,6 +13,7 @@ from lnprob import lnprob
 from opt_func import opt_func
 import emcee
 from emcee.utils import MPIPool
+import multiprocessing as mp
 
 #"""
 #Usage:
@@ -65,12 +66,24 @@ def emceeinit(w0, incl, nbins, nthreads, nsteps, savename, data, dbins, MPI=0):
     FORMAT = '%m-%d-%Y-%H%M'
     f.write(savename+', '+str(nbins)+', '+str(nsteps)+', '+str(scale)+', '+str(sizecorr)+', '+datetime.now().strftime(FORMAT))
 
+    #Model initialization
+    u, v, dreal, dimag, dwgt = data
+    incl = 0.
+    udeproj = u * np.cos(incl) #Deproject
+    rho  = 1e3*np.sqrt(udeproj**2+v**2)
+
+    rin, b = dbins
+    rbin = np.concatenate([np.array([rin]), b])
+
+    jarg = np.outer(2.*np.pi*rbin, rho/206264.806427)
+    jinc = sc.j1(jarg)/jarg
+    pool = mp.Pool(nthreads-1)
 
     #Initialize sampler using MPI if necessary
-    if MPI:
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[data, dbins], pool=pool)
-    else:
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[data, dbins], threads=nthreads)
+    # if MPI:
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[data, dbins], pool=pool)
+    # else:
+    #     sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[data, dbins], threads=nthreads)
     print 'Nbins, Ndim', nbins, ndim
     print 'Dbins', dbins
 
