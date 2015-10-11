@@ -17,7 +17,7 @@ def synthguess(a, b, nbins, filename):
 
     bmaj =  hdr['BMAJ']*3600
     bmin =  hdr['BMIN']*3600
-    
+
     # construct the radial grid for the image (generic for projected viewing geometry)
     incl = 0.
     PA   = 0.
@@ -25,18 +25,35 @@ def synthguess(a, b, nbins, filename):
     ang = np.radians(270.-PA)
     xp  = np.cos(ang)*xp_-np.sin(ang)*yp_
     yp  = np.sin(ang)*xp_+np.cos(ang)*yp_
-    rim = np.sqrt(xp*xp+1./np.cos(np.radians(incl))**2*yp*yp)
-    
+    rim = np.sqrt(xp*xp+1./np.cos(np.radians(incl))**2*yp*yp) #Radius
+    azang = np.arctan2(yp/np.cos(np.radians(incl)), xp) #Polar angle
+    azang[azang<0] = azang[azang<0]+2.*np.pi
+
     # scale surface brightnesses to Jy/arcsec^2 units
 
     ##    pimage /= xps*yps     #Originally used pixel size
     pimage /= np.pi * bmaj * bmin/ (4. * np.log(2))
-    
+
     # flatten into a profile
     SBpim = pimage.flatten()
     rpim  = rim.flatten()
+    azangim = azang.flatten()
 
-    
+    #Find SNR
+    #Identify patches off-beam
+    router = np.where((rpim > 3.3) & (rpim < 3.5) & (azangim > np.radians(42.)) & (azangim < np.radians(48.)))
+    rinner = np.where((rpim > .5) & (rpim < .7) & (azangim > np.radians(42.)) & (azangim < np.radians(48.)))
+#    plt.subplot(2,1,1)
+#    plt.plot(rpim[router], SBpim[router],'.')
+#    plt.plot(rpim[rinner], SBpim[rinner],'.r')
+#    plt.subplot(2,1,2)
+#    plt.plot(np.degrees(azangim[router]), SBpim[router],'.')
+#    plt.plot(np.degrees(azangim[rinner]), SBpim[rinner],'.r')
+#    #plt.show()
+#    print 'Outer mean', np.mean(SBpim[router]),' std: ', np.std(SBpim[router])
+#    print 'Inner mean', np.mean(SBpim[rinner]),' std: ', np.std(SBpim[rinner])
+#    pdb.set_trace()
+
     # -- DISCRETE DECOMPOSITION from PERFECT IMAGE
     # define the annular bins (as in d3sbFit.py)
     #nbins = 15
@@ -47,7 +64,7 @@ def synthguess(a, b, nbins, filename):
     ## a[0] = rin
     cb = 0.5*(a+b)
     ## bins = rin, b
-    
+
     # calculate the average surface brightness in each bin
     SBdscp = np.zeros_like(cb)
     print 'Binlow Binhigh AvgSB'
