@@ -11,7 +11,8 @@ def getVisALMA(datafile):
     v = 1e-3*datain['v']*freq/2.9974e8
     dreal = datain['Re']
     dimag = datain['Im']
-    dwgt = 10000.*datain['Wt']
+    dwgt = datain['Wt']/np.sqrt(2.)
+#10000.*datain['Wt']
 
     data = u, v, dreal, dimag, dwgt
 
