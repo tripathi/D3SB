@@ -32,12 +32,10 @@ def calcprior(weights, bins, a, l):
     cba[0] = rin
     cb = 0.5*(cba+b)
 
-    C = calccovar(cb, a, l)
-    #print C
+
+    C = calccovar(b, a, l)
+
     # print 'Hi'
-    # plt.imshow(C, interpolation='nearest', cmap='Blues', origin = 'upper')
-    # plt.colorbar()
-    # plt.savefig('lv'+str(np.around(l, decimals = 2))+'.png')
     # # plt.savefig('tmp'+str(np.around(clogdet, decimals=1))+'.png')
     # plt.clf()
     # print 'Bye'
@@ -69,7 +67,16 @@ def calcprior(weights, bins, a, l):
     #+ cb.shape[0]*np.log(2.*np.pi)
 
     #result =
-    return (np.dot(weights, cho_solve((chofac, flag), weights)) + clogdet)
+    prod = (np.dot(weights, cho_solve((chofac, flag), weights)))
+
+    # plt.imshow(C, interpolation='nearest', cmap='Blues', origin = 'upper')
+    # plt.colorbar()
+    # plt.savefig('prod'+str(np.around(prod, decimals = 2))+'.png')
+    # plt.clf()
+
+    return prod + clogdet + b.shape[0]*np.log(2.*np.pi)
+
+
 
 def priortest():
     b = np.linspace(0.01, 0.5, num = 6)
