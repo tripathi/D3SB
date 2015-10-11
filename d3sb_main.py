@@ -9,11 +9,12 @@ from datetime import datetime
 from getVis import getVis
 from getVisALMA import getVisALMA
 from synthimage import synthguess
-from lnprob import lnprob
+#from lnprob import lnprob
 from opt_func import opt_func
 import emcee
 from emcee.utils import MPIPool
 import multiprocessing as mp
+import gpprior as gp
 
 #"""
 #Usage:
@@ -23,8 +24,12 @@ import multiprocessing as mp
 #"""
 
 
-def emceeinit(w0, incl, nbins, nthreads, nsteps, savename, data, dbins, MPI=0):
+def emceeinit(w0, inclin, nbins, nthreads, nsteps, savename, data, dbins, MPI=0):
     """Emcee driver function"""
+
+#HARDCODED - Warning. Also bins.
+    global incl
+    incl = inclin
 
     #Initialize the MPI-based pool used for parallelization.
     if MPI:
@@ -36,7 +41,8 @@ def emceeinit(w0, incl, nbins, nthreads, nsteps, savename, data, dbins, MPI=0):
                 sys.exit(0)
 
     #Setup
-    ndim = nbins + 2 #Removing inclination as a variable.
+    ndim = nbins
+    # + 2 #Removing inclination as a variable.
     nwalkers = 4*ndim
     p0 = np.zeros((nwalkers, ndim))
     print 'Nbins is now', nbins
@@ -50,12 +56,13 @@ def emceeinit(w0, incl, nbins, nthreads, nsteps, savename, data, dbins, MPI=0):
             rand = np.random.uniform(-(w0[rs]*scale*sizecorr), (w0[rs]*scale*sizecorr))
             if rs < 3:
                 rand = np.random.uniform(0, 2.*w0[rs])
-            p0[walker][rs+2] = w0[rs] + rand
-        p0[walker][0] = np.random.uniform(.001, 100.) #When adding back in, make prev statement rs+1
-        while True:
-            p0[walker][1] = np.random.gamma(2., 2.)*np.amax(dbins[1:])/20. + np.amin(np.diff(dbins[1:]))
-            if (p0[walker][1]>=np.amin(dbins[1:]) or p0[walker][1]<=np.amax(dbins[1:])):
-                break
+            p0[walker][rs] = w0[rs] + rand #Make it rs+2, if a & l vary
+        # #Initialize a & l
+        # p0[walker][0] = np.random.uniform(.001, 100.) #When adding back in, make prev statement rs+1
+        # while True:
+        #     p0[walker][1] = np.random.gamma(2., 2.)*np.amax(dbins[1:])/20. + np.amin(np.diff(dbins[1:]))
+        #     if (p0[walker][1]>=np.amin(dbins[1:]) or p0[walker][1]<=np.amax(dbins[1:])):
+        #         break
 
         #THIS IS A PROBLEM FOR THE 1st BIN WITH rin. Also the normalization
 #        p0[walker][0] = incl+np.random.uniform(0.85*incl,1.15*incl) #When adding back in, make prev statement rs+1
@@ -67,23 +74,29 @@ def emceeinit(w0, incl, nbins, nthreads, nsteps, savename, data, dbins, MPI=0):
     f.write(savename+', '+str(nbins)+', '+str(nsteps)+', '+str(scale)+', '+str(sizecorr)+', '+datetime.now().strftime(FORMAT))
 
     #Model initialization
+    global dreal, dimag, dwgt
     u, v, dreal, dimag, dwgt = data
-    incl = 0.
+#    incl = 0.
     udeproj = u * np.cos(incl) #Deproject
     rho  = 1e3*np.sqrt(udeproj**2+v**2)
-
-    rin, b = dbins
-    rbin = np.concatenate([np.array([rin]), b])
-
+    global b1
+    global rin
+    rin, b1 = dbins
+    indices = np.arange(b1.size)
+    global gpbins
+    gpbins = rin, indices
+    global rbin
+    rbin = np.concatenate([np.array([rin]), b1])
     jarg = np.outer(2.*np.pi*rbin, rho/206264.806427)
+    global jinc
     jinc = sc.j1(jarg)/jarg
-    pool = mp.Pool(nthreads-1)
+#    pool = mp.Pool(nthreads-1)
 
     #Initialize sampler using MPI if necessary
-    # if MPI:
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[data, dbins], pool=pool)
-    # else:
-    #     sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[data, dbins], threads=nthreads)
+    if MPI:
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, pool=pool)
+    else:
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, threads=nthreads)
     print 'Nbins, Ndim', nbins, ndim
     print 'Dbins', dbins
 
@@ -120,9 +133,10 @@ def main():
 
     #Input files
     ALMA = 1 #Is this an ALMA data file
-    basename = 'gap_fo' #Name common to all files in this run
+    basename = 'gp_test' #Name common to all files in this run
     if ALMA:
-        hiresvis = basename + '.340GHz.vis.npz' #Model visibilities
+        hiresvis = basename + '.combo.noisy.vis.npz'
+#.340GHz.vis.npz' #Model visibilities
         synthimg = basename + '.combo.noisy.image.fits' #Synthesized image, for guesses
     else:
         hiresvis = basename + '.vis.fits' #Model visibilities
@@ -137,7 +151,7 @@ def main():
     inclguess = 0. #Inclination in degrees
 
     #Emcee setup parameters
-    nsteps = 100 #Number of steps to take
+    nsteps = 20000 #Number of steps to take
     nthreads = 12 #Number of threads
     MPIflag = 0 #Use MPI (1) or not (0)
 
@@ -265,9 +279,53 @@ def main():
         notes=''
     savename = basename+'_'+str(nbins)+'_'+notes
 
+    global bins
+    bins = dbins
 
     #Run emcee
     emceeinit(infile['w0'], inclguess, nbins, nthreads, nsteps, savename+'_mean', data, dbins, MPIflag)
+
+
+def lnprob(theta):
+
+    # a = theta[0]
+    # l = theta[1]
+    # weights = theta[2:]
+    a = .005
+    l = 1. #np.amin(b1)
+    weights = theta
+
+    # if (l<np.amin(np.diff(b1)) or l>np.amax(np.diff(b1))):
+    #     return -np.inf
+
+    if (weights<-20).any() or (weights>20).any():
+        return -np.inf
+
+    if (weights<0).any():
+        return -np.inf
+
+    mreal = d3sbModel(weights)
+    mimag = np.zeros_like(mreal) #Check if this change is ok.
+
+    chi2 = np.sum(dwgt*(dreal-mreal)**2) + np.sum(dwgt*(dimag-mimag)**2)
+    lnp = -0.5*chi2
+    prior = -0.5*gp.calcprior(weights, gpbins, a, l)
+    posterior = lnp + prior
+
+    return posterior
+
+def d3sbModel(theta):
+
+
+    w = theta #Ring bin amplitudes
+    wbin = np.append(np.concatenate([np.array([0.0]), w]), 0.)
+    ww = wbin-np.roll(wbin, -1)
+    wgt = np.delete(ww, b1.size+1)
+
+    vis = np.dot(2.*np.pi*rbin**2*wgt, jinc)
+
+    return vis
+
 
 if __name__ == "__main__":
     main()

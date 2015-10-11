@@ -7,16 +7,16 @@ from scipy.optimize import curve_fit
 import triangle #Should work on tillandsia, but isn't
 from getVis import getVis
 from getVisALMA import getVisALMA
-from lnprob import lnprob
-from d3sbModel import d3sbModel
+from lnprob_alone import lnprob_alone
+#from d3sbModel import d3sbModel
 from deprojectVis import deprojectVis
 
 
 def inclfix(theta):
     incl = np.mod(theta, 360.)
     inclout = deepcopy(incl)
-    #Rotate angle into 4 traditional quadrants                                  
-    #Inclination definition will need to change if profile not axisymm.         
+    #Rotate angle into 4 traditional quadrants
+    #Inclination definition will need to change if profile not axisymm.
     q1 = np.where((incl>90)*(incl < 180))
     q2 = np.where((incl>=180)*(incl < 270))
     q3 = np.where(incl>=270)
@@ -52,24 +52,28 @@ def knee(r, rc, gam, A1, A2):
 #(It eliminates the need for plt.show, etc)
 #plt.interactive(True)
 
-#Params 
-nbinsinit = 40
-nbins=22
-#14
-ndim = nbins+1
+#Params
+nbinsinit = 20
+#40
+nbins=14
+#22
+ndim = nbins
 nwalkers = 4.*nbins
-plotchains = 0#Plot individual chains or not
+plotchains = 1#Plot individual chains or not
 plottriangle = 0 #Make triangle plot or not
 binmin = 0.01
 binmax = 0.75
 
 #Convert to appropriate units
-dpc = 140. 
+dpc = 140.
 
 #Find appropriate files
-basename = 'gap_fo'
+basename = 'blind2_fo'
 #blind2_fo'
-note = 'gaprcoeff_c_c_c_c'
+note = 'withnlog2a005'
+#gpindices10k'
+#choglobalfixedal'
+#gaprcoeff_c_c_c_c'
 #fracdivplus1'
 #divpenalty'
 #onlyturns_norcoeff'
@@ -115,14 +119,16 @@ infilecorr = np.load('opt_'+basename+'_linear_'+str(nbins)+'.npz')
 #chainw0[:,:,0] = inclfix(chainw0[:,:,0]).reshape(chainw0[:,:,0].shape)*180./np.pi
 
 #Flatten chain
-cstart = 0
+cstart = 3000
 samplesw0 = chainw0[:, cstart:, :].reshape((-1,ndim))
-sampleswonly = chainw0[:,cstart:, 1:].reshape((-1,ndim-1))
+sampleswonly = samplesw0
+#sampleswonly = chainw0[:,cstart:, 2:].reshape((-1,ndim-2))
 
 #Set bins
 print 'Warning: Using hardcoded bins for Chi^2 calc'
 btmp = np.linspace(binmin, binmax, num=nbinsinit)
-b = np.concatenate([btmp[btmp<0.35], np.array([0.35, 0.45, 0.6, binmax])])
+b = np.concatenate([btmp[btmp<0.4], np.array([0.45, 0.6, binmax])])
+#b = np.concatenate([btmp[btmp<0.35], np.array([0.35, 0.45, 0.6, binmax])])
 #b = np.concatenate([btmp[btmp<0.5], np.array([0.6, binmax])])
 numbins = np.shape(b) #Changing number of bins
 nbins = numbins[0]
@@ -133,7 +139,6 @@ a[0] = rin
 cb = 0.5*(a+b)
 dbins = rin, b
 herr = (b-a)/2. #Bin extent (horiz. errorbar)
-
 
 #Get percentile information - here 1 sigma
 stuff = map(lambda v: (v[1], v[2]-v[1], v[1]-v[0]),zip(*np.percentile(samplesw0, [16, 50, 84],axis=0)))
@@ -153,12 +158,12 @@ rr = deepcopy(infilecorr['cb'])
 himage = np.zeros_like(rr)
 
 #gap
-rc = 50./dpc
-gam=0.5
-ftot=0.15
-
-himage[rr>0] = (rc/rr[rr>0])*np.exp(-(rr[rr>0]/rc)**(2.-gam))
-himage[(rr>25./dpc)*(rr<35./dpc)] *= 0.1
+# rc = 50./dpc
+# gam=0.5
+# ftot=0.15
+#
+# himage[rr>0] = (rc/rr[rr>0])*np.exp(-(rr[rr>0]/rc)**(2.-gam))
+# himage[(rr>25./dpc)*(rr<35./dpc)] *= 0.1
 
 
 #blind1
@@ -170,12 +175,12 @@ himage[(rr>25./dpc)*(rr<35./dpc)] *= 0.1
 #himage[(rr>rc)] = (rc/rr[(rr>rc)])**6.0
 
 #blind2
-#rc = 55./dpc
-#gam = 0.5
-#ftot = 0.12
-#himage = np.zeros_like(rr)
-#himage[(rr>0)&(rr<rc)] = (rc/rr[(rr>0)&(rr<rc)])**(gam+0.5)
-#himage[(rr>rc)] = (rc/rr[(rr>rc)])**4.0
+rc = 55./dpc
+gam = 0.5
+ftot = 0.12
+himage = np.zeros_like(rr)
+himage[(rr>0)&(rr<rc)] = (rc/rr[(rr>0)&(rr<rc)])**(gam+0.5)
+himage[(rr>rc)] = (rc/rr[(rr>rc)])**4.0
 #image =0.0824975*himage
 #ftot*himage/np.sum(himage)
 image = ftot*himage/np.sum(himage*np.pi*(b**2 - a**2))
@@ -187,9 +192,10 @@ print ftot/np.sum(himage*np.pi*(b**2 - a**2))
 
 
 #Print chi^2 for each model
-#print 'Input mean guess (assuming 0 inclination)', -2. * lnprob(np.concatenate([[0],infilecorr['w0']]), data, dbins)
-print 'Emcee output', -2. * lnprob(np.asarray(vcentral), data, dbins)
-print 'Truth', -2.*lnprob(np.concatenate([[0],image]), data, dbins)
+#lnprob_alone(theta, data, bins)
+print 'Input mean guess (assuming 0 inclination)', -2. * lnprob_alone(infilecorr['w0'], data, dbins)
+print 'Emcee output', -2. * lnprob_alone(np.asarray(vcentral), data, dbins)
+print 'Truth', -2.*lnprob_alone(image, data, dbins)
 
 
 if plottriangle:
@@ -217,35 +223,35 @@ if plotchains:
 
 
 
-#Plot number of turning points
-fig = plt.figure(33)
-#turns = np.zeros((ndim*4, cstart))
-turns = np.zeros((ndim*4, chainw0.shape[1]))
-for iw in np.arange(ndim*4):
-#    for iter in np.arange(cstart):
-    for iter in np.arange(chainw0.shape[1]):
-        dx = np.diff(chainw0[iw,iter,1:])
-        turns[iw,iter] = np.sum(dx[1:]*dx[:-1] <0)
-#    totaliter = np.arange(cstart)
-    totaliter = np.arange(chainw0.shape[1])
-#    plt.subplot(2,1,1)
-    plt.plot(totaliter, turns[iw,:], '-or', alpha = 0.2)
-#    plt.plot(chainw0[iw,:,0], turns[iw,:], '-or', alpha = 0.2)
-    plt.title('Turning points vs step #')
-#penalty coefficient')
-    plt.ylim(-0.5,12.5)
-#    plt.subplot(2,1,2)
-#    plt.plot(totaliter, chainw0[iw,:,0], 'b')
-#    plt.title('Penalty coefficient')
-fig.savefig("turns_"+basename+"_"+note+".png")
-print 'Finished plotting turning points'
-pdb.set_trace()
-    
-            
+# #Plot number of turning points
+# fig = plt.figure(33)
+# #turns = np.zeros((ndim*4, cstart))
+# turns = np.zeros((ndim*4, chainw0.shape[1]))
+# for iw in np.arange(ndim*4):
+# #    for iter in np.arange(cstart):
+#     for iter in np.arange(chainw0.shape[1]):
+#         dx = np.diff(chainw0[iw,iter,1:])
+#         turns[iw,iter] = np.sum(dx[1:]*dx[:-1] <0)
+# #    totaliter = np.arange(cstart)
+#     totaliter = np.arange(chainw0.shape[1])
+# #    plt.subplot(2,1,1)
+#     plt.plot(totaliter, turns[iw,:], '-or', alpha = 0.2)
+# #    plt.plot(chainw0[iw,:,0], turns[iw,:], '-or', alpha = 0.2)
+#     plt.title('Turning points vs step #')
+# #penalty coefficient')
+#     plt.ylim(-0.5,12.5)
+# #    plt.subplot(2,1,2)
+# #    plt.plot(totaliter, chainw0[iw,:,0], 'b')
+# #    plt.title('Penalty coefficient')
+# fig.savefig("turns_"+basename+"_"+note+".png")
+# print 'Finished plotting turning points'
+# pdb.set_trace()
+
+
 #Plot cumulative flux
 
 ftest = np.pi*(b**2 - a**2)
-fbin = np.asarray(vcentral[1:])*np.pi*(b**2 - a**2)
+fbin = np.asarray(vcentral)*np.pi*(b**2 - a**2)
 #fbin = np.asarray(vcentral)*np.pi*(b**2 - a**2)
 fbinmean = infilecorr['w0']*np.pi*(b**2 - a**2)
 cumf = np.cumsum(fbin)
@@ -253,19 +259,19 @@ cumfmean = np.cumsum(fbinmean)
 fig10 = plt.figure(10)
 plt.plot(cb, cumf, '-ob', cb, cumfmean, '-.k')
 fig10.savefig("cumulative_"+basename+"_"+note+".png")
-    
-  
+
+
 #Plot surface brightness
 fig6 = plt.figure(6)
-#for iw in np.arange(ndim*4):
-#    plt.plot(infilecorr['cb'],chainw0[iw,0,1:], '-co', alpha = 0.1) #Plot starting ball
-plt.plot(rr, image, '-ks', alpha = 0.5) #Plot truth    
+for iw in np.arange(ndim*4):
+    plt.plot(infilecorr['cb'],chainw0[iw,0,], '-co', alpha = 0.1) #Plot starting ball
+plt.plot(rr, image, '-ks', alpha = 0.5) #Plot truth
 #plt.errorbar(infilecorr['cb'], vcentral, yerr = [vlower, vupper], xerr = herr, fmt='.b', elinewidth=1.5)
-plt.errorbar(infilecorr['cb'], vcentral[1:], yerr = [vlower[1:], vupper[1:]], xerr = herr, fmt='.b', elinewidth=1.5)
+plt.errorbar(infilecorr['cb'], vcentral, yerr = [vlower, vupper], xerr = herr, fmt='.b', elinewidth=1.5)
 plt.plot(infilecorr['cb'], infilecorr['w0'], 'o', markeredgecolor='r', markerfacecolor='None')
 
 
-    
+
 plt.title(str(nbins)+' bins') #Hardcoded
 plt.xlabel('Angle ["]')
 plt.ylabel('Intensity [Jy/"$^2$]')
@@ -275,7 +281,7 @@ ax = plt.gca()
 ax.set_yscale('log')
 ax.set_xscale('log')
 fig6.savefig(basename+"_"+note+"_"+str(nbins)+".png")
-
+pdb.set_trace()
 
 #Plot visibilities & residuals
 fig7 = plt.figure(7)
@@ -295,8 +301,9 @@ rhoproj = np.sqrt(vproj**2+u**2)
 uvsamples = u, v
 #uvsamplest = uprojt, v
 
+pdb.set_trace()
 vis = d3sbModel(vcentral, uvsamples, dbins)
-vist = d3sbModel(np.concatenate([[0],image]), uvsamples, dbins)
+# vist = d3sbModel(np.concatenate([[0],image]), uvsamples, dbins)
 
 plt.subplot(2,1,1)
 #plt.plot(rho, dreal, '.k')
@@ -345,5 +352,3 @@ pdb.set_trace()
 
 print 'Stopping'
 pdb.set_trace()
-
-
