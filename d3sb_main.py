@@ -144,10 +144,14 @@ def main():
 
     #Parameters
     numbins = 20
-    binmin = 0.01 #Where to start bins in arcsec, but will be cutoff at rin
+    binmin = .01
+#0.02 #Where to start bins in arcsec, but will be cutoff at rin
+
     binmax = .75 #Outer bin edge in arcsec
     dpc = 140. #Distance to source in pc
     rin = 0.1/dpc #Inner cutoff in arcsec
+#0.01
+
     inclguess = 0. #Inclination in degrees
 
     #Emcee setup parameters
@@ -155,6 +159,7 @@ def main():
     nthreads = 12 #Number of threads
     MPIflag = 0 #Use MPI (1) or not (0)
 
+    print 'No GP prior'
 
 
     # Get data
@@ -291,15 +296,16 @@ def lnprob(theta):
     # a = theta[0]
     # l = theta[1]
     # weights = theta[2:]
-    a = .005
-    l = 1. #np.amin(b1)
+    # a = .0001
+#.005
+    # l = 1. #np.amin(b1)
     weights = theta
 
     # if (l<np.amin(np.diff(b1)) or l>np.amax(np.diff(b1))):
     #     return -np.inf
 
-    if (weights<-20).any() or (weights>20).any():
-        return -np.inf
+    #if (weights<-20).any() or (weights>20).any():
+#        return -np.inf
 
     if (weights<0).any():
         return -np.inf
@@ -308,9 +314,19 @@ def lnprob(theta):
     mimag = np.zeros_like(mreal) #Check if this change is ok.
 
     chi2 = np.sum(dwgt*(dreal-mreal)**2) + np.sum(dwgt*(dimag-mimag)**2)
-    lnp = -0.5*chi2
-    prior = -0.5*gp.calcprior(weights, gpbins, a, l)
-    posterior = lnp + prior
+    #lnp = -0.5*chi2
+    # prior = -0.5*gp.calcprior(weights, gpbins, a, l)
+    #posterior = lnp
+    # + prior
+
+    dw = np.diff(weights)
+    penalty = np.sum(dw[1:]*dw[:-1] <0)
+    rcoeff = 1.#0.01
+    regularization =float(rcoeff*np.shape(dreal)[0]/np.shape(weights)[0])
+
+    chi2tot = chi2+regularization*penalty
+    #print 'Extra penalty term/chi2 ', regularization*penalty/chi2
+    posterior = -0.5*chi2tot
 
     return posterior
 

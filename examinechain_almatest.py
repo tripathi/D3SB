@@ -62,15 +62,24 @@ nwalkers = 4.*nbins
 plotchains = 1#Plot individual chains or not
 plottriangle = 0 #Make triangle plot or not
 binmin = 0.01
+#0.02
 binmax = 0.75
 
 #Convert to appropriate units
 dpc = 140.
 
 #Find appropriate files
-basename = 'blind2_fo'
+basename = 'gp_test'
 #blind2_fo'
-note = 'withnlog2a005'
+note = 'smalla_100k'
+#penaltyrcoeff1'
+#gp_test_fixedal'
+#'withpenaltyforreal'
+#
+#smalla_100k'
+#'binsmoved'
+#'
+#withnlog2a005'
 #gpindices10k'
 #choglobalfixedal'
 #gaprcoeff_c_c_c_c'
@@ -108,7 +117,8 @@ chainw0 = np.load('mc_'+basename+'_'+str(nbins)+'_'+note+'_mean.npy')
 #mc_blindknee_i75_carma_20_incltest_mean.npy')
 #mc_blindknee_i75_carma_20_again_mean.npy')
 #mc_blind1_20_abax2000_mean.npy')
-hiresvis = 'DATA/'+basename+'.340GHz.vis.npz' #Model visibilities
+hiresvis = 'DATA/'+basename+'.combo.noisy.vis.npz'
+#.340GHz.vis.npz' #Model visibilities
 #+'.vis.fits'
 #
 data = getVisALMA(hiresvis)
@@ -135,6 +145,8 @@ nbins = numbins[0]
 #b = np.linspace(0.01, 1.5, num=nbins)
 a = np.roll(b, 1)
 rin = 0.1/dpc
+#0.01
+
 a[0] = rin
 cb = 0.5*(a+b)
 dbins = rin, b
@@ -175,14 +187,25 @@ himage = np.zeros_like(rr)
 #himage[(rr>rc)] = (rc/rr[(rr>rc)])**6.0
 
 #blind2
-rc = 55./dpc
-gam = 0.5
-ftot = 0.12
-himage = np.zeros_like(rr)
-himage[(rr>0)&(rr<rc)] = (rc/rr[(rr>0)&(rr<rc)])**(gam+0.5)
-himage[(rr>rc)] = (rc/rr[(rr>rc)])**4.0
+#rc = 55./dpc
+#gam = 0.5
+#ftot = 0.12
+#himage = np.zeros_like(rr)
+#himage[(rr>0)&(rr<rc)] = (rc/rr[(rr>0)&(rr<rc)])**(gam+0.5)
+#himage[(rr>rc)] = (rc/rr[(rr>rc)])**4.0
 #image =0.0824975*himage
 #ftot*himage/np.sum(himage)
+
+rc = 0.5
+ftot = 0.15
+arcsec = 206264.806427
+tiny = 1e-12
+A = 0.10579 / arcsec**2
+himage[rr<=2.] =  A * (rr/rc)**(-1) * np.exp(-(rr/rc)**(1.5) )
+himage[rr>2.] = 0.+tiny
+
+
+
 image = ftot*himage/np.sum(himage*np.pi*(b**2 - a**2))
 
 print ftot/np.sum(himage*np.pi*(b**2 - a**2))
@@ -192,10 +215,11 @@ print ftot/np.sum(himage*np.pi*(b**2 - a**2))
 
 
 #Print chi^2 for each model
-#lnprob_alone(theta, data, bins)
-print 'Input mean guess (assuming 0 inclination)', -2. * lnprob_alone(infilecorr['w0'], data, dbins)
-print 'Emcee output', -2. * lnprob_alone(np.asarray(vcentral), data, dbins)
-print 'Truth', -2.*lnprob_alone(image, data, dbins)
+gpa = .0001
+gpl = 1.
+print 'Input mean guess (assuming 0 inclination)', -2. * lnprob_alone(infilecorr['w0'], data, dbins, gpa, gpl)
+print 'Emcee output', -2. * lnprob_alone(np.asarray(vcentral), data, dbins, gpa, gpl)
+print 'Truth', -2.*lnprob_alone(image, data, dbins, gpa, gpl)
 
 
 if plottriangle:
@@ -263,8 +287,8 @@ fig10.savefig("cumulative_"+basename+"_"+note+".png")
 
 #Plot surface brightness
 fig6 = plt.figure(6)
-for iw in np.arange(ndim*4):
-    plt.plot(infilecorr['cb'],chainw0[iw,0,], '-co', alpha = 0.1) #Plot starting ball
+#for iw in np.arange(ndim*4):
+    # plt.plot(infilecorr['cb'],chainw0[iw,0,], '-co', alpha = 0.1) #Plot starting ball
 plt.plot(rr, image, '-ks', alpha = 0.5) #Plot truth
 #plt.errorbar(infilecorr['cb'], vcentral, yerr = [vlower, vupper], xerr = herr, fmt='.b', elinewidth=1.5)
 plt.errorbar(infilecorr['cb'], vcentral, yerr = [vlower, vupper], xerr = herr, fmt='.b', elinewidth=1.5)
@@ -275,8 +299,8 @@ plt.plot(infilecorr['cb'], infilecorr['w0'], 'o', markeredgecolor='r', markerfac
 plt.title(str(nbins)+' bins') #Hardcoded
 plt.xlabel('Angle ["]')
 plt.ylabel('Intensity [Jy/"$^2$]')
-plt.xlim(2e-3,1.6)
-plt.ylim(1e-3, 20)
+plt.xlim(5e-4,1.3) #2e-3, 1.6
+plt.ylim(5e-3, 30) #1e-3, 20
 ax = plt.gca()
 ax.set_yscale('log')
 ax.set_xscale('log')
