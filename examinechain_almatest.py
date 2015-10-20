@@ -11,6 +11,8 @@ from lnprob_alone import lnprob_alone
 #from d3sbModel import d3sbModel
 from deprojectVis import deprojectVis
 
+plt.style.use('mystyle')
+#plt.interactive('True')
 
 def inclfix(theta):
     incl = np.mod(theta, 360.)
@@ -53,25 +55,36 @@ def knee(r, rc, gam, A1, A2):
 #plt.interactive(True)
 
 #Params
-nbinsinit = 20
+nbinsinit = 30
+#20
 #40
-nbins=14
+nbins=21
+#14
 #22
 ndim = nbins
 nwalkers = 4.*nbins
-plotchains = 1#Plot individual chains or not
+plotchains = 0#Plot individual chains or not
 plottriangle = 0 #Make triangle plot or not
 binmin = 0.01
 #0.02
-binmax = 0.75
+binmax = 1.6#2.0
+#0.75
 
 #Convert to appropriate units
 dpc = 140.
 
 #Find appropriate files
-basename = 'gp_test'
+basename = 'gp_gap'
+#test'
 #blind2_fo'
-note = 'smalla_100k'
+note = 'gpl2'
+#penalty1'
+#gpcovarminus2'
+#penalty1_no0inguess'
+#gppriorminus2bin'
+
+#penalty1'
+#smalla_100k'
 #penaltyrcoeff1'
 #gp_test_fixedal'
 #'withpenaltyforreal'
@@ -129,15 +142,20 @@ infilecorr = np.load('opt_'+basename+'_linear_'+str(nbins)+'.npz')
 #chainw0[:,:,0] = inclfix(chainw0[:,:,0]).reshape(chainw0[:,:,0].shape)*180./np.pi
 
 #Flatten chain
-cstart = 3000
+cstart = 8000
 samplesw0 = chainw0[:, cstart:, :].reshape((-1,ndim))
 sampleswonly = samplesw0
 #sampleswonly = chainw0[:,cstart:, 2:].reshape((-1,ndim-2))
 
 #Set bins
 print 'Warning: Using hardcoded bins for Chi^2 calc'
-btmp = np.linspace(binmin, binmax, num=nbinsinit)
-b = np.concatenate([btmp[btmp<0.4], np.array([0.45, 0.6, binmax])])
+btmp = np.linspace(binmin, binmax/2., num=nbinsinit/2)
+btmp2 = np.linspace(binmax/2., binmax, num=nbinsinit/4)
+b=np.concatenate([btmp, btmp2[1:]])
+
+#btmp = np.linspace(binmin, binmax, num=nbinsinit)
+#b = btmp
+#np.concatenate([btmp[btmp<0.4], np.array([0.45, 0.6, binmax])])
 #b = np.concatenate([btmp[btmp<0.35], np.array([0.35, 0.45, 0.6, binmax])])
 #b = np.concatenate([btmp[btmp<0.5], np.array([0.6, binmax])])
 numbins = np.shape(b) #Changing number of bins
@@ -196,31 +214,39 @@ himage = np.zeros_like(rr)
 #image =0.0824975*himage
 #ftot*himage/np.sum(himage)
 
-rc = 0.5
-ftot = 0.15
-arcsec = 206264.806427
+#gp_test
+#rc = 0.5
+#ftot = 0.15
+#arcsec = 206264.806427
 tiny = 1e-12
-A = 0.10579 / arcsec**2
-himage[rr<=2.] =  A * (rr/rc)**(-1) * np.exp(-(rr/rc)**(1.5) )
+#A = 0.10579 / arcsec**2
+#himage[rr<=2.] =  A * (rr/rc)**(-1) * np.exp(-(rr/rc)**(1.5) )
+
+#gp_gap
+rc = 0.7
+himage  =  (rr/rc)**(-0.75) * np.exp(-(rr/rc)**(2.5))
+himage[(rr>0.4)&(rr<0.5)] *= 0.1
+Ic = 0.062211   # exactly
+himage *=Ic
 himage[rr>2.] = 0.+tiny
+image = himage
+#ftot*himage/np.sum(himage*np.pi*(b**2 - a**2))
 
-
-
-image = ftot*himage/np.sum(himage*np.pi*(b**2 - a**2))
-
-print ftot/np.sum(himage*np.pi*(b**2 - a**2))
+#print ftot/np.sum(himage*np.pi*(b**2 - a**2))
 
 #knee(infilecorr['cb'], rc, gam, 1., 1.)
 #0.0824975
 
 
 #Print chi^2 for each model
-gpa = .0001
-gpl = 1.
-print 'Input mean guess (assuming 0 inclination)', -2. * lnprob_alone(infilecorr['w0'], data, dbins, gpa, gpl)
-print 'Emcee output', -2. * lnprob_alone(np.asarray(vcentral), data, dbins, gpa, gpl)
-print 'Truth', -2.*lnprob_alone(image, data, dbins, gpa, gpl)
-
+gpa = .005
+#.0001
+gpl = 2.
+#print 'Input mean guess (assuming 0 inclination)', -2. * lnprob_alone(infilecorr['w0'], data, dbins, gpa, gpl)
+#print 'Emcee output', -2. * lnprob_alone(np.asarray(vcentral), data, dbins, gpa, gpl)
+#print 'Truth', -2.*lnprob_alone(image, data, dbins, gpa, gpl)
+#print 'Press c to continue to plotting stage'
+#pdb.set_trace()
 
 if plottriangle:
     #Make triangle plot
@@ -237,7 +263,7 @@ if plotchains:
 
     for idim in np.arange(ndim):
         for iw in np.arange(ndim*4):
-            plt.subplot(6,4,idim+1)
+            plt.subplot(6,5,idim+1)
             plt.plot(chainxall, chainw0[iw,cstart:, idim], 'b')
             plt.plot(chainx, [vcentral[idim], vcentral[idim]], 'k')
             plt.plot(chainx, [vcentral[idim]-vlower[idim], vcentral[idim]-vlower[idim]], 'r')
@@ -281,7 +307,10 @@ fbinmean = infilecorr['w0']*np.pi*(b**2 - a**2)
 cumf = np.cumsum(fbin)
 cumfmean = np.cumsum(fbinmean)
 fig10 = plt.figure(10)
-plt.plot(cb, cumf, '-ob', cb, cumfmean, '-.k')
+ax = plt.gca()
+ax.grid('off')
+
+plt.plot(cb, cumf, '-o', cb, cumfmean, '-.k') #b
 fig10.savefig("cumulative_"+basename+"_"+note+".png")
 
 
@@ -289,19 +318,27 @@ fig10.savefig("cumulative_"+basename+"_"+note+".png")
 fig6 = plt.figure(6)
 #for iw in np.arange(ndim*4):
     # plt.plot(infilecorr['cb'],chainw0[iw,0,], '-co', alpha = 0.1) #Plot starting ball
-plt.plot(rr, image, '-ks', alpha = 0.5) #Plot truth
+plt.plot(rr, image, '-ks', alpha = 0.4, linewidth=2) #Plot truth #k .5alpha
 #plt.errorbar(infilecorr['cb'], vcentral, yerr = [vlower, vupper], xerr = herr, fmt='.b', elinewidth=1.5)
-plt.errorbar(infilecorr['cb'], vcentral, yerr = [vlower, vupper], xerr = herr, fmt='.b', elinewidth=1.5)
-plt.plot(infilecorr['cb'], infilecorr['w0'], 'o', markeredgecolor='r', markerfacecolor='None')
+plt.errorbar(infilecorr['cb'], vcentral, yerr = [vlower, vupper],  fmt='.', elinewidth=2, c='#003399',markersize=12, markeredgewidth=1.) #b
+plt.plot(infilecorr['cb'], infilecorr['w0'], 'o', markerfacecolor='None', markeredgewidth=1.,markeredgecolor='#fc4f30', zorder=1) #r
 
 
+#Make it into a stairstep, thereby removing xerr=herr
+for i in np.arange(nbins):
+    binwidth = [a[i],b[i]]
+    binheight=[vcentral[i], vcentral[i]]
+    plt.plot(binwidth, binheight, c='#003399', linewidth=1.25, alpha=0.3)
+    if i<nbins-1:
+        plt.plot([b[i],b[i]], [vcentral[i],vcentral[i+1]], c='#003399', linewidth=1.25, alpha=0.3)
 
 plt.title(str(nbins)+' bins') #Hardcoded
 plt.xlabel('Angle ["]')
 plt.ylabel('Intensity [Jy/"$^2$]')
-plt.xlim(5e-4,1.3) #2e-3, 1.6
-plt.ylim(5e-3, 30) #1e-3, 20
+plt.xlim(5e-4,2.0) #2e-3, 1.6
+plt.ylim(1e-5, 30) #1e-3, 20
 ax = plt.gca()
+ax.grid('off')
 ax.set_yscale('log')
 ax.set_xscale('log')
 fig6.savefig(basename+"_"+note+"_"+str(nbins)+".png")
