@@ -24,12 +24,13 @@ def lnprob_alone(theta, data, bins, gpa, gpl):
 
     #Calculate chi^2
     chi2 = np.sum(dwgt*(dreal-mreal)**2) + np.sum(dwgt*(dimag-mimag)**2)
+    Ndata = 2.*np.shape(dreal)[0]
 
     #Calculate penalty
     dw = np.diff(weights)
     penalty = np.sum(dw[1:]*dw[:-1] <0)
     rcoeff = 1.#0.01
-    regularization =float(rcoeff*np.shape(dreal)[0]/np.shape(weights)[0])
+    regularization =float(rcoeff*Ndata/np.shape(weights)[0])
 
 
     #Calculate prior
@@ -37,12 +38,13 @@ def lnprob_alone(theta, data, bins, gpa, gpl):
 
 
     #Print desired quantities
-    print ('Reduced Chi2: ', chi2/(len(u)-np.shape(bins[1:])[1]),
-            ' Chi2: ', chi2, ' NData: ', len(u))
-    print ('Penalty: ', penalty*regularization,
-            ' Nturns: ', penalty, ' multiplier: ', regularization)
-    print 'Prior ', -2.*prior
-    print 'Penalty/Prior: ', penalty/(prior*-2)
+    print '\n Reduced Chi2: ', chi2/(Ndata-np.shape(bins[1:])[1]), \
+            ' Chi2: ', chi2, ' NData: ', len(u)
+    print '\n Penalty: ', penalty*regularization, \
+            ' Nturns: ', penalty, ' multiplier: ', regularization
+    print '\n Prior ', -2.*prior, '/chi2: ', -2.*prior/chi2
+    print '\n Penalty/chi2 ', penalty*regularization/chi2
+    print '\n Penalty/Prior: ', penalty*regularization/(prior*-2)
 
     #Final value
     chi2tot = chi2+regularization*penalty
