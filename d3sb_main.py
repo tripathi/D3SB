@@ -133,7 +133,7 @@ def main():
 
     #Input files
     ALMA = 1 #Is this an ALMA data file
-    basename = 'gp_test' #Name common to all files in this run
+    basename = 'gp_nogap' #Name common to all files in this run
     if ALMA:
         hiresvis = basename + '.combo.noisy.vis.npz'
 #.340GHz.vis.npz' #Model visibilities
@@ -143,23 +143,25 @@ def main():
         synthimg = basename + '_1mm.fits' #Synthesized image, for guesses
 
     #Parameters
-    numbins = 20
+    numbins = 30
     binmin = .01
 #0.02 #Where to start bins in arcsec, but will be cutoff at rin
 
-    binmax = .75 #Outer bin edge in arcsec
+    binmax = 1.3
+    ##gpgap?1.6 #Outer bin edge in arcsec
     dpc = 140. #Distance to source in pc
-    rin = 0.1/dpc #Inner cutoff in arcsec
+    rin = 0.005
+#gpgap0.1/dpc #Inner cutoff in arcsec
 #0.01
 
     inclguess = 0. #Inclination in degrees
 
     #Emcee setup parameters
-    nsteps = 20000 #Number of steps to take
+    nsteps = 25000 #Number of steps to take
     nthreads = 12 #Number of threads
     MPIflag = 0 #Use MPI (1) or not (0)
 
-    print 'No GP prior'
+#    print 'No GP prior'
 
 
     # Get data
@@ -207,9 +209,17 @@ def main():
         b = np.zeros(nbins)
 
         #Set bin locations
-        btmp = np.linspace(binmin, binmax, num=nbins)
-        #b=btmp
-        b = np.concatenate([btmp[btmp<0.4], np.array([0.45, 0.6, binmax])])
+####        btmp = np.linspace(binmin, 0.35, num = 6)
+####        btmp2 = np.linspace(0.35, 0.5, num = 8)
+####        btmp3 = np.linspace(0.5, 1.2, num=9)
+
+        ####b = np.concatenate([btmp, btmp2[1:], btmp3[1:]])
+
+        btmp = np.linspace(binmin, binmax/2., num=nbins/2) #gpgap
+        btmp2 = np.linspace(binmax/2., binmax, num=nbins/4)#gpgap
+        #np.logspace(np.log10(binmin), np.log10(binmax), num=nbins)
+        b=np.concatenate([btmp, btmp2[1:]])#gpgap
+#        b = np.concatenate([btmp[btmp<0.4], np.array([0.45, 0.6, binmax])])
         #b = np.concatenate([btmp[btmp<0.35], np.array([0.35, 0.45, 0.6, binmax])])
         numbins = np.shape(b) #Changing number of bins
         nbins = numbins[0]
@@ -217,6 +227,7 @@ def main():
         a = np.roll(b, 1)
         a[0] = rin
         cb = 0.5*(a+b)
+
         dbins = rin, b
 
         #Calculate the jinc
@@ -296,9 +307,9 @@ def lnprob(theta):
     # a = theta[0]
     # l = theta[1]
     # weights = theta[2:]
-    # a = .0001
+    a = .005
 #.005
-    # l = 1. #np.amin(b1)
+    l = 2. #np.amin(b1)
     weights = theta
 
     # if (l<np.amin(np.diff(b1)) or l>np.amax(np.diff(b1))):
@@ -314,19 +325,20 @@ def lnprob(theta):
     mimag = np.zeros_like(mreal) #Check if this change is ok.
 
     chi2 = np.sum(dwgt*(dreal-mreal)**2) + np.sum(dwgt*(dimag-mimag)**2)
-    #lnp = -0.5*chi2
-    # prior = -0.5*gp.calcprior(weights, gpbins, a, l)
+    lnp = -0.5*chi2
+#    prior = -0.5*gp.calcprior(weights, gpbins, a, l)
     #posterior = lnp
     # + prior
 
     dw = np.diff(weights)
     penalty = np.sum(dw[1:]*dw[:-1] <0)
     rcoeff = 1.#0.01
-    regularization =float(rcoeff*np.shape(dreal)[0]/np.shape(weights)[0])
+    regularization =float(rcoeff*2.*np.shape(dreal)[0]/np.shape(weights)[0])
 
     chi2tot = chi2+regularization*penalty
-    #print 'Extra penalty term/chi2 ', regularization*penalty/chi2
+#    print 'Extra penalty term/chi2 ', regularization*penalty/chi2
     posterior = -0.5*chi2tot
+#    posterior = lnp + prior
 
     return posterior
 
