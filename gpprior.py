@@ -21,7 +21,7 @@ def calccovar(binsin, ain, lin):
     cov = np.fromfunction(kexp2,(nbins,nbins), ibins=binsin, a=ain, l=lin, dtype = np.int)
     return cov
 
-def calcprior(weights, bins, a, l):
+def calcprior(iweights, bins, a, l):
     '''
     Invert covariance matrix and take the product with the weights
     vectors
@@ -30,10 +30,12 @@ def calcprior(weights, bins, a, l):
     rin, b = bins
     cba = np.roll(b, 1)
     cba[0] = rin
-    cb = 0.5*(cba+b)
+    cbt = 0.5*(cba+b) #Formerly cb
 
+    cb = cbt[2:] #Removing the first two bins
+    weights = iweights[2:]
 
-    C = calccovar(b, a, l)
+    C = calccovar(cb, a, l)
 
     # print 'Hi'
     # # plt.savefig('tmp'+str(np.around(clogdet, decimals=1))+'.png')
