@@ -8,7 +8,7 @@ import triangle #Should work on tillandsia, but isn't
 from getVis import getVis
 from getVisALMA import getVisALMA
 from lnprob_alone import lnprob_alone
-#from d3sbModel import d3sbModel
+from d3sbModel import d3sbModel
 from deprojectVis import deprojectVis
 
 plt.style.use('mystyle')
@@ -67,17 +67,23 @@ plotchains = 0#Plot individual chains or not
 plottriangle = 0 #Make triangle plot or not
 binmin = 0.01
 #0.02
-binmax = 1.6#2.0
+binmax = 1.6
+#1.3
+####1.6#2.0
 #0.75
 
 #Convert to appropriate units
 dpc = 140.
 
 #Find appropriate files
-basename = 'gp_gap'
+basename = 'gp_test'
+#nogap'
 #test'
 #blind2_fo'
-note = 'gpl2'
+note = 'penalty1_no0inguess'
+#'penalty1'
+#_manbins'
+###gpl2'
 #penalty1'
 #gpcovarminus2'
 #penalty1_no0inguess'
@@ -149,7 +155,16 @@ sampleswonly = samplesw0
 
 #Set bins
 print 'Warning: Using hardcoded bins for Chi^2 calc'
-btmp = np.linspace(binmin, binmax/2., num=nbinsinit/2)
+####btmp = np.linspace(0.01, 0.35, num = 6)
+####btmp2 = np.linspace(0.35, 0.5, num = 8)
+####btmp3 = np.linspace(0.5, 1.2, num=9)
+####b = np.concatenate([btmp, btmp2[1:], btmp3[1:]])
+####a = np.roll(b, 1)
+rin = 0.005
+
+
+
+btmp = np.linspace(binmin, binmax/2., num=nbinsinit/2)#gpgapl2
 btmp2 = np.linspace(binmax/2., binmax, num=nbinsinit/4)
 b=np.concatenate([btmp, btmp2[1:]])
 
@@ -167,6 +182,7 @@ rin = 0.1/dpc
 
 a[0] = rin
 cb = 0.5*(a+b)
+print cb
 dbins = rin, b
 herr = (b-a)/2. #Bin extent (horiz. errorbar)
 
@@ -215,20 +231,22 @@ himage = np.zeros_like(rr)
 #ftot*himage/np.sum(himage)
 
 #gp_test
-#rc = 0.5
+rc = 0.5
 #ftot = 0.15
-#arcsec = 206264.806427
+arcsec = 206264.806427
 tiny = 1e-12
-#A = 0.10579 / arcsec**2
-#himage[rr<=2.] =  A * (rr/rc)**(-1) * np.exp(-(rr/rc)**(1.5) )
+A = 0.10579 #/ arcsec**2
+himage[rr<=2.] =  A * (rr/rc)**(-1) * np.exp(-(rr/rc)**(1.5) )
 
 #gp_gap
-rc = 0.7
-himage  =  (rr/rc)**(-0.75) * np.exp(-(rr/rc)**(2.5))
-himage[(rr>0.4)&(rr<0.5)] *= 0.1
-Ic = 0.062211   # exactly
-himage *=Ic
-himage[rr>2.] = 0.+tiny
+#rc = 0.7
+#himage  =  (rr/rc)**(-0.75) * np.exp(-(rr/rc)**(2.5))
+#himage[(rr>0.4)&(rr<0.5)] *= 0.1
+#Ic = 0.062211   # exactly
+#Ic = 0.054976#For no gap
+
+#himage *=Ic
+#himage[rr>2.] = 0.+tiny
 image = himage
 #ftot*himage/np.sum(himage*np.pi*(b**2 - a**2))
 
@@ -242,11 +260,11 @@ image = himage
 gpa = .005
 #.0001
 gpl = 2.
-#print 'Input mean guess (assuming 0 inclination)', -2. * lnprob_alone(infilecorr['w0'], data, dbins, gpa, gpl)
-#print 'Emcee output', -2. * lnprob_alone(np.asarray(vcentral), data, dbins, gpa, gpl)
+print 'Input mean guess (assuming 0 inclination)', -2. * lnprob_alone(infilecorr['w0'], data, dbins, gpa, gpl)
+print 'Emcee output', -2. * lnprob_alone(np.asarray(vcentral), data, dbins, gpa, gpl)
 #print 'Truth', -2.*lnprob_alone(image, data, dbins, gpa, gpl)
-#print 'Press c to continue to plotting stage'
-#pdb.set_trace()
+print 'Press c to continue to plotting stage'
+pdb.set_trace()
 
 if plottriangle:
     #Make triangle plot
@@ -264,7 +282,7 @@ if plotchains:
     for idim in np.arange(ndim):
         for iw in np.arange(ndim*4):
             plt.subplot(6,5,idim+1)
-            plt.plot(chainxall, chainw0[iw,cstart:, idim], 'b')
+            plt.plot(chainxall, chainw0[iw,cstart:, idim], 'b',linewidth=0.5)
             plt.plot(chainx, [vcentral[idim], vcentral[idim]], 'k')
             plt.plot(chainx, [vcentral[idim]-vlower[idim], vcentral[idim]-vlower[idim]], 'r')
             plt.plot(chainx, [vcentral[idim]+vupper[idim], vcentral[idim]+vupper[idim]], 'g')
@@ -318,21 +336,22 @@ fig10.savefig("cumulative_"+basename+"_"+note+".png")
 fig6 = plt.figure(6)
 #for iw in np.arange(ndim*4):
     # plt.plot(infilecorr['cb'],chainw0[iw,0,], '-co', alpha = 0.1) #Plot starting ball
-plt.plot(rr, image, '-ks', alpha = 0.4, linewidth=2) #Plot truth #k .5alpha
+plt.plot(rr, image, '-ks', alpha = 0.4)#, linewidth=2) #Plot truth #k .5alpha
 #plt.errorbar(infilecorr['cb'], vcentral, yerr = [vlower, vupper], xerr = herr, fmt='.b', elinewidth=1.5)
-plt.errorbar(infilecorr['cb'], vcentral, yerr = [vlower, vupper],  fmt='.', elinewidth=2, c='#003399',markersize=12, markeredgewidth=1.) #b
-plt.plot(infilecorr['cb'], infilecorr['w0'], 'o', markerfacecolor='None', markeredgewidth=1.,markeredgecolor='#fc4f30', zorder=1) #r
+plt.errorbar(infilecorr['cb'], vcentral, yerr = [vlower, vupper],xerr=herr,  fmt='.', elinewidth=2, c='#30a2da',markersize=12, alpha= 0.8) #b #003399
+plt.plot(infilecorr['cb'], infilecorr['w0'], 'o', markerfacecolor='None', markeredgewidth=1.,markeredgecolor='#fc4f30', zorder=1, alpha = 0.7) #r
 
 
 #Make it into a stairstep, thereby removing xerr=herr
-for i in np.arange(nbins):
-    binwidth = [a[i],b[i]]
-    binheight=[vcentral[i], vcentral[i]]
-    plt.plot(binwidth, binheight, c='#003399', linewidth=1.25, alpha=0.3)
-    if i<nbins-1:
-        plt.plot([b[i],b[i]], [vcentral[i],vcentral[i+1]], c='#003399', linewidth=1.25, alpha=0.3)
+#for i in np.arange(nbins):
+#    binwidth = [a[i],b[i]]
+#    binheight=[vcentral[i], vcentral[i]]
+#    plt.plot(binwidth, binheight, c='#30a2da', alpha=0.9)
+##003399', linewidth=1.25, alpha=0.3)
+#    if i<nbins-1:
+#        plt.plot([b[i],b[i]], [vcentral[i],vcentral[i+1]], c='#30a2da', alpha=0.9)#, c='#003399', linewidth=1.25, alpha=0.3)
 
-plt.title(str(nbins)+' bins') #Hardcoded
+#plt.title(str(nbins)+' bins') #Hardcoded
 plt.xlabel('Angle ["]')
 plt.ylabel('Intensity [Jy/"$^2$]')
 plt.xlim(5e-4,2.0) #2e-3, 1.6
@@ -341,29 +360,35 @@ ax = plt.gca()
 ax.grid('off')
 ax.set_yscale('log')
 ax.set_xscale('log')
-fig6.savefig(basename+"_"+note+"_"+str(nbins)+".png")
+fig6.savefig("new"+basename+"_"+note+"_"+str(nbins)+".png")
 pdb.set_trace()
 
 #Plot visibilities & residuals
 fig7 = plt.figure(7)
 u, v, dreal, dimag, dwgt = data
 
-newbins = np.arange(5., 2000., 50.)
+newbins1 = np.arange(1., 252., 50.)
+newbins2 = np.arange(251., 2400., 200.)
+newbins = np.concatenate([newbins1, newbins2[1:]])
+
 visout = deprojectVis(hiresvis, newbins, incl=vcentral[0], PA=90., offset=[0., 0.], nu=340e9, wsc=1., fitsfile=0)
 onewbins, obre, obim, ober, Ruvp, realp = visout
 
-vproj = v*np.cos(vcentral[0]*(np.pi/180.))
+#vproj = v*np.cos(vcentral[0]*(np.pi/180.))
 #uprojt = u*np.cos(75.*np.pi/180.)
 rho = np.sqrt(u**2+v**2)
 rind = rho.argsort()
-rhoproj = np.sqrt(vproj**2+u**2)
+rhoproj = rho
+print 'WARNING: Assuming 0 inclination for visibility'
+#np.sqrt(uproj**2+v**2)
 #rhoprojt = np.sqrt(v**2+uprojt**2.)
 
 uvsamples = u, v
 #uvsamplest = uprojt, v
 
-pdb.set_trace()
+
 vis = d3sbModel(vcentral, uvsamples, dbins)
+vist = d3sbModel(image, uvsamples, dbins)
 # vist = d3sbModel(np.concatenate([[0],image]), uvsamples, dbins)
 
 plt.subplot(2,1,1)
@@ -373,11 +398,12 @@ plt.subplot(2,1,1)
 
 
 
-plt.plot(rhoproj, dreal, '.m', alpha=0.2)
-plt.plot(rho, vist, '.r', alpha = 0.2)
-plt.plot(rho, vis, '.g', alpha = 0.2)
+plt.plot(rhoproj, dreal, '.', alpha=0.2, color='#FFB5B8')
 
-plt.plot(onewbins, obre, 'bs')
+plt.plot(rho, vist, '.k', alpha = 0.1)
+plt.plot(rho, vis, '.b', alpha = 0.1)
+plt.plot(onewbins, obre, '.m', alpha = 0.7, markersize = 10)
+
 #plt.plot(rhoproj[rind], vis[rind], '.b')
 
 plt.ylabel('Visibility')
@@ -398,9 +424,9 @@ print toohight, dreal[toohight], vist[toohight], dvtrel[toohight]
 
 plt.subplot(2,1,2)
 plt.plot(rho, np.zeros_like(rho), 'k')
-plt.plot(rho, (dreal - vis), '.g')
-plt.plot(rho, (dreal - vist), '.r', alpha = 0.5)
-plt.ylabel('(Data-Model)')
+#plt.plot(rho, (dreal - vis), '.g')
+plt.plot(rho, (vist - vis), '.', alpha = 0.5, c='#777777')
+plt.ylabel('(Truth-Model)')
 plt.xlabel('Rho')
 fig7.savefig("vis_"+basename+"_"+note+".png")
 pdb.set_trace()
