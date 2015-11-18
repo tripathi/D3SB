@@ -41,8 +41,7 @@ def emceeinit(w0, inclin, nbins, nthreads, nsteps, savename, data, dbins, MPI=0)
                 sys.exit(0)
 
     #Setup
-    ndim = nbins
-    # + 2 #Removing inclination as a variable.
+    ndim = nbins + 2 #Removing inclination as a variable.
     nwalkers = 4*ndim
     p0 = np.zeros((nwalkers, ndim))
     print 'Nbins is now', nbins
@@ -56,13 +55,13 @@ def emceeinit(w0, inclin, nbins, nthreads, nsteps, savename, data, dbins, MPI=0)
             rand = np.random.uniform(-(w0[rs]*scale*sizecorr), (w0[rs]*scale*sizecorr))
             if rs < 3:
                 rand = np.random.uniform(0, 2.*w0[rs])
-            p0[walker][rs] = w0[rs] + rand #Make it rs+2, if a & l vary
+            p0[walker][rs+2] = w0[rs] + rand #Make it rs+2, if a & l vary
         # #Initialize a & l
-        # p0[walker][0] = np.random.uniform(.001, 100.) #When adding back in, make prev statement rs+1
-        # while True:
-        #     p0[walker][1] = np.random.gamma(2., 2.)*np.amax(dbins[1:])/20. + np.amin(np.diff(dbins[1:]))
-        #     if (p0[walker][1]>=np.amin(dbins[1:]) or p0[walker][1]<=np.amax(dbins[1:])):
-        #         break
+        p0[walker][0] = np.random.uniform(.001, 100.) #When adding back in, make prev statement rs+1
+        while True:
+            p0[walker][1] = np.random.gamma(2., 2.)*np.amax(dbins[1:])/20. + np.amin(np.diff(dbins[1:]))
+            if (p0[walker][1]>=np.amin(dbins[1:]) or p0[walker][1]<=np.amax(dbins[1:])):
+                break
 
         #THIS IS A PROBLEM FOR THE 1st BIN WITH rin. Also the normalization
 #        p0[walker][0] = incl+np.random.uniform(0.85*incl,1.15*incl) #When adding back in, make prev statement rs+1
@@ -84,7 +83,8 @@ def emceeinit(w0, inclin, nbins, nthreads, nsteps, savename, data, dbins, MPI=0)
     rin, b1 = dbins
     indices = np.arange(b1.size)
     global gpbins
-    gpbins = rin, indices
+    gpbins = dbins
+#rin, indices
     global rbin
     rbin = np.concatenate([np.array([rin]), b1])
     jarg = np.outer(2.*np.pi*rbin, rho/206264.806427)
@@ -242,6 +242,7 @@ def main():
         ## wtrue = ((2-gam)*Ftot/(2*np.pi*rout**2)) * (cb/rout)**(-gam)*np.exp(-(cb/rout)**(2.-gam))
 
         #Find mean values at bin locations from synthesized image
+        global wg
         wg = synthguess(a, b, nbins, synthimg)
         w0=wg
         #plt.plot(cb, wtrue, 'ok',
@@ -304,16 +305,16 @@ def main():
 
 def lnprob(theta):
 
-    # a = theta[0]
-    # l = theta[1]
-    # weights = theta[2:]
-    a = .005
+    a = theta[0]
+    l = theta[1]
+    weights = theta[2:]
+#    a = .005
 #.005
-    l = 2. #np.amin(b1)
-    weights = theta
+#    l = 2. #np.amin(b1)
+    #weights = theta
 
-    # if (l<np.amin(np.diff(b1)) or l>np.amax(np.diff(b1))):
-    #     return -np.inf
+    if (l<np.amin(np.diff(b1)) or l>np.amax(np.diff(b1))):
+        return -np.inf
 
     #if (weights<-20).any() or (weights>20).any():
 #        return -np.inf
@@ -326,18 +327,17 @@ def lnprob(theta):
 
     chi2 = np.sum(dwgt*(dreal-mreal)**2) + np.sum(dwgt*(dimag-mimag)**2)
     lnp = -0.5*chi2
-#    prior = -0.5*gp.calcprior(weights, gpbins, a, l)
-    #posterior = lnp
-    # + prior
+    prior = -0.5*gp.calcprior(weights, gpbins, a, l, wg)
+    posterior = lnp + prior
 
-    dw = np.diff(weights)
-    penalty = np.sum(dw[1:]*dw[:-1] <0)
-    rcoeff = 1.#0.01
-    regularization =float(rcoeff*2.*np.shape(dreal)[0]/np.shape(weights)[0])
+##     dw = np.diff(weights)
+##     penalty = np.sum(dw[1:]*dw[:-1] <0)
+##     rcoeff = 1.#0.01
+##     regularization =float(rcoeff*2.*np.shape(dreal)[0]/np.shape(weights)[0])
 
-    chi2tot = chi2+regularization*penalty
-#    print 'Extra penalty term/chi2 ', regularization*penalty/chi2
-    posterior = -0.5*chi2tot
+##     chi2tot = chi2+regularization*penalty
+## #    print 'Extra penalty term/chi2 ', regularization*penalty/chi2
+##     posterior = -0.5*chi2tot
 #    posterior = lnp + prior
 
     return posterior

@@ -21,19 +21,22 @@ def calccovar(binsin, ain, lin):
     cov = np.fromfunction(kexp2,(nbins,nbins), ibins=binsin, a=ain, l=lin, dtype = np.int)
     return cov
 
-def calcprior(iweights, bins, a, l):
+def calcprior(iweights, bins, a, l, meanguess = None):
     '''
     Invert covariance matrix and take the product with the weights
     vectors
     '''
+
+    if meanguess is None:
+        meanguess = np.zeros_like(iweights)
 
     rin, b = bins
     cba = np.roll(b, 1)
     cba[0] = rin
     cbt = 0.5*(cba+b) #Formerly cb
 
-    cb = cbt[2:] #Removing the first two bins
-    weights = iweights[2:]
+    cb = cbt
+    weights = iweights - meanguess #Subtracting out the initial guess
 
     C = calccovar(cb, a, l)
 
