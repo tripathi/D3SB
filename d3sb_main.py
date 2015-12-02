@@ -41,7 +41,7 @@ def emceeinit(w0, inclin, nbins, nthreads, nsteps, savename, data, dbins, MPI=0)
                 sys.exit(0)
 
     #Setup
-    ndim = nbins + 2 #Removing inclination as a variable.
+    ndim = nbins #+ 2 #Removing inclination as a variable.
     nwalkers = 4*ndim
     p0 = np.zeros((nwalkers, ndim))
     print 'Nbins is now', nbins
@@ -55,13 +55,13 @@ def emceeinit(w0, inclin, nbins, nthreads, nsteps, savename, data, dbins, MPI=0)
             rand = np.random.uniform(-(w0[rs]*scale*sizecorr), (w0[rs]*scale*sizecorr))
             if rs < 3:
                 rand = np.random.uniform(0, 2.*w0[rs])
-            p0[walker][rs+2] = w0[rs] + rand #Make it rs+2, if a & l vary
+            p0[walker][rs] = w0[rs] + rand #Make it rs+2, if a & l vary
         # #Initialize a & l
-        p0[walker][0] = np.random.uniform(.001, 100.) #When adding back in, make prev statement rs+1
-        while True:
-            p0[walker][1] = np.random.gamma(2., 2.)*np.amax(dbins[1:])/20. + np.amin(np.diff(dbins[1:]))
-            if (p0[walker][1]>=np.amin(dbins[1:]) or p0[walker][1]<=np.amax(dbins[1:])):
-                break
+#        p0[walker][0] = np.random.uniform(.0001, 1.) #When adding back in, make prev statement rs+1
+#        while True:
+#            p0[walker][1] = np.random.gamma(2., 2.)*np.amax(dbins[1:])/20. + np.amin(np.diff(dbins[1:]))
+#            if (p0[walker][1]>=np.amin(dbins[1:]) or p0[walker][1]<=np.amax(dbins[1:])):
+#                break
 
         #THIS IS A PROBLEM FOR THE 1st BIN WITH rin. Also the normalization
 #        p0[walker][0] = incl+np.random.uniform(0.85*incl,1.15*incl) #When adding back in, make prev statement rs+1
@@ -245,6 +245,16 @@ def main():
         global wg
         wg = synthguess(a, b, nbins, synthimg)
         w0=wg
+
+
+        #Truth for this model
+        global himage
+        rc = 0.7
+        himage  =  (cb/rc)**(-0.75) * np.exp(-(cb/rc)**(2.5))
+        Ic = 0.054976#For no gap
+        himage *=Ic
+
+
         #plt.plot(cb, wtrue, 'ok',
         #plt.plot(cb, wg, 'rs')
         #plt.show(block='False')
@@ -305,13 +315,13 @@ def main():
 
 def lnprob(theta):
 
-    a = theta[0]
-    l = theta[1]
-    weights = theta[2:]
-#    a = .005
+#    a = theta[0]
+#    l = theta[1]
+#    weights = theta[2:]
+    a = .005
 #.005
-#    l = 2. #np.amin(b1)
-    #weights = theta
+    l = 2. *np.amin(b1)
+    weights = theta
 
     if (l<np.amin(np.diff(b1)) or l>np.amax(np.diff(b1))):
         return -np.inf
@@ -327,7 +337,7 @@ def lnprob(theta):
 
     chi2 = np.sum(dwgt*(dreal-mreal)**2) + np.sum(dwgt*(dimag-mimag)**2)
     lnp = -0.5*chi2
-    prior = -0.5*gp.calcprior(weights, gpbins, a, l, wg)
+    prior = -0.5*gp.calcprior(weights, gpbins, a, l, himage)
     posterior = lnp + prior
 
 ##     dw = np.diff(weights)
