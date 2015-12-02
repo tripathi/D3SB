@@ -61,14 +61,14 @@ nbinsinit = 30
 nbins=21
 #14
 #22
-ndim = nbins
+ndim = nbins#+2
 nwalkers = 4.*nbins
-plotchains = 0#Plot individual chains or not
+plotchains = 1#Plot individual chains or not
 plottriangle = 0 #Make triangle plot or not
 binmin = 0.01
 #0.02
-binmax = 1.6
-#1.3
+binmax = 1.3
+#1.6
 ####1.6#2.0
 #0.75
 
@@ -76,11 +76,14 @@ binmax = 1.6
 dpc = 140.
 
 #Find appropriate files
-basename = 'gp_test'
-#nogap'
+basename = 'gp_nogap'
 #test'
 #blind2_fo'
-note = 'penalty1_no0inguess'
+note ='gp_alfixed_truthresid'
+#gptruthresid'
+#'gp_alvary'
+#testsynthmean'
+#penalty1_no0inguess'
 #'penalty1'
 #_manbins'
 ###gpl2'
@@ -150,8 +153,8 @@ infilecorr = np.load('opt_'+basename+'_linear_'+str(nbins)+'.npz')
 #Flatten chain
 cstart = 8000
 samplesw0 = chainw0[:, cstart:, :].reshape((-1,ndim))
-sampleswonly = samplesw0
-#sampleswonly = chainw0[:,cstart:, 2:].reshape((-1,ndim-2))
+#sampleswonly = samplesw0
+sampleswonly = chainw0[:,cstart:, 2:].reshape((-1,ndim-2))
 
 #Set bins
 print 'Warning: Using hardcoded bins for Chi^2 calc'
@@ -177,7 +180,7 @@ numbins = np.shape(b) #Changing number of bins
 nbins = numbins[0]
 #b = np.linspace(0.01, 1.5, num=nbins)
 a = np.roll(b, 1)
-rin = 0.1/dpc
+#rin = 0.1/dpc
 #0.01
 
 a[0] = rin
@@ -239,13 +242,13 @@ A = 0.10579 #/ arcsec**2
 himage[rr<=2.] =  A * (rr/rc)**(-1) * np.exp(-(rr/rc)**(1.5) )
 
 #gp_gap
-#rc = 0.7
-#himage  =  (rr/rc)**(-0.75) * np.exp(-(rr/rc)**(2.5))
+rc = 0.7
+himage  =  (rr/rc)**(-0.75) * np.exp(-(rr/rc)**(2.5))
 #himage[(rr>0.4)&(rr<0.5)] *= 0.1
 #Ic = 0.062211   # exactly
-#Ic = 0.054976#For no gap
+Ic = 0.054976#For no gap
 
-#himage *=Ic
+himage *=Ic
 #himage[rr>2.] = 0.+tiny
 image = himage
 #ftot*himage/np.sum(himage*np.pi*(b**2 - a**2))
@@ -260,8 +263,8 @@ image = himage
 gpa = .005
 #.0001
 gpl = 2.
-print 'Input mean guess (assuming 0 inclination)', -2. * lnprob_alone(infilecorr['w0'], data, dbins, gpa, gpl)
-print 'Emcee output', -2. * lnprob_alone(np.asarray(vcentral), data, dbins, gpa, gpl)
+#print 'Input mean guess (assuming 0 inclination)', -2. * lnprob_alone(infilecorr['w0'], data, dbins, gpa, gpl)
+#print 'Emcee output', -2. * lnprob_alone(np.asarray(vcentral), data, dbins, gpa, gpl)
 #print 'Truth', -2.*lnprob_alone(image, data, dbins, gpa, gpl)
 print 'Press c to continue to plotting stage'
 pdb.set_trace()
@@ -279,7 +282,7 @@ if plotchains:
     chainxall = np.arange(chainw0.shape[1]-cstart)/1000.
     fig = plt.figure(1)
 
-    for idim in np.arange(ndim):
+    for idim in np.arange(ndim-2):
         for iw in np.arange(ndim*4):
             plt.subplot(6,5,idim+1)
             plt.plot(chainxall, chainw0[iw,cstart:, idim], 'b',linewidth=0.5)
