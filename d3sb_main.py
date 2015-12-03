@@ -41,7 +41,7 @@ def emceeinit(w0, inclin, nbins, nthreads, nsteps, savename, data, dbins, MPI=0)
                 sys.exit(0)
 
     #Setup
-    ndim = nbins #+ 2 #Removing inclination as a variable.
+    ndim = nbins + 1 #Removing inclination as a variable.
     nwalkers = 4*ndim
     p0 = np.zeros((nwalkers, ndim))
     print 'Nbins is now', nbins
@@ -55,9 +55,9 @@ def emceeinit(w0, inclin, nbins, nthreads, nsteps, savename, data, dbins, MPI=0)
             rand = np.random.uniform(-(w0[rs]*scale*sizecorr), (w0[rs]*scale*sizecorr))
             if rs < 3:
                 rand = np.random.uniform(0, 2.*w0[rs])
-            p0[walker][rs] = w0[rs] + rand #Make it rs+2, if a & l vary
+            p0[walker][rs+1] = w0[rs] + rand #Make it rs+2, if a & l vary
         # #Initialize a & l
-#        p0[walker][0] = np.random.uniform(.0001, 1.) #When adding back in, make prev statement rs+1
+        p0[walker][0] = np.random.uniform(.0001, .5) #When adding back in, make prev statement rs+1
 #        while True:
 #            p0[walker][1] = np.random.gamma(2., 2.)*np.amax(dbins[1:])/20. + np.amin(np.diff(dbins[1:]))
 #            if (p0[walker][1]>=np.amin(dbins[1:]) or p0[walker][1]<=np.amax(dbins[1:])):
@@ -172,6 +172,14 @@ def main():
 
     #Corrupt/change data as needed
     u, v, dreal, dimag, dwgt = data
+    freq = 340e9 #GHz
+    cms=3e8 #m/s
+    arcsec = 180./np.pi*3600.
+
+    global res
+    res = cms/freq/np.amax(np.sqrt(u**2 + v**2))*arcsec
+
+    
     ## mu = 0
     ## sigma = 1./np.sqrt(dwgt)
     ## dwgt = dwgt * 10000.
@@ -315,21 +323,21 @@ def main():
 
 def lnprob(theta):
 
-#    a = theta[0]
+    a = theta[0]
 #    l = theta[1]
-#    weights = theta[2:]
-    a = .005
+    weights = theta[1:]
+#    a = .005
 #.005
-    l = 2. *np.amin(b1)
-    weights = theta
+    l = 2. *res
+#    weights = theta
 
-    if (l<np.amin(np.diff(b1)) or l>np.amax(np.diff(b1))):
-        return -np.inf
+#    if (l<np.amin(np.diff(b1)) or l>np.amax(np.diff(b1))):
+#        return -np.inf
 
     #if (weights<-20).any() or (weights>20).any():
 #        return -np.inf
 
-    if (weights<0).any():
+    if (weights<0).any() or a<0:
         return -np.inf
 
     mreal = d3sbModel(weights)

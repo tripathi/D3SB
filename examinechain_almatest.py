@@ -61,7 +61,7 @@ nbinsinit = 30
 nbins=21
 #14
 #22
-ndim = nbins#+2
+ndim = nbins+1
 nwalkers = 4.*nbins
 plotchains = 1#Plot individual chains or not
 plottriangle = 0 #Make triangle plot or not
@@ -79,7 +79,8 @@ dpc = 140.
 basename = 'gp_nogap'
 #test'
 #blind2_fo'
-note ='gp_alfixed_truthresid'
+note ='truthresid_avaryres'
+#gp_alfixed_truthresid'
 #gptruthresid'
 #'gp_alvary'
 #testsynthmean'
@@ -154,7 +155,7 @@ infilecorr = np.load('opt_'+basename+'_linear_'+str(nbins)+'.npz')
 cstart = 8000
 samplesw0 = chainw0[:, cstart:, :].reshape((-1,ndim))
 #sampleswonly = samplesw0
-sampleswonly = chainw0[:,cstart:, 2:].reshape((-1,ndim-2))
+sampleswonly = chainw0[:,cstart:, 1:].reshape((-1,ndim-1))
 
 #Set bins
 print 'Warning: Using hardcoded bins for Chi^2 calc'
@@ -267,10 +268,10 @@ gpl = 2.
 #print 'Emcee output', -2. * lnprob_alone(np.asarray(vcentral), data, dbins, gpa, gpl)
 #print 'Truth', -2.*lnprob_alone(image, data, dbins, gpa, gpl)
 print 'Press c to continue to plotting stage'
-pdb.set_trace()
 
 if plottriangle:
     #Make triangle plot
+    print "I'm making a triangle plot!"
     fig = triangle.corner(sampleswonly)
     fig.savefig("linear_monot_"+basename+"_"+note+".png")
     pdb.set_trace()
@@ -278,11 +279,12 @@ if plottriangle:
 
 if plotchains:
 #Plot chains over time for each bin
+    print "I'm plotting chains!"
     chainx = np.array([0,chainw0.shape[1]-cstart])/1000.
     chainxall = np.arange(chainw0.shape[1]-cstart)/1000.
     fig = plt.figure(1)
 
-    for idim in np.arange(ndim-2):
+    for idim in np.arange(ndim):
         for iw in np.arange(ndim*4):
             plt.subplot(6,5,idim+1)
             plt.plot(chainxall, chainw0[iw,cstart:, idim], 'b',linewidth=0.5)
@@ -320,9 +322,9 @@ if plotchains:
 
 
 #Plot cumulative flux
-
+print "Let me calculate cumulative flux"
 ftest = np.pi*(b**2 - a**2)
-fbin = np.asarray(vcentral)*np.pi*(b**2 - a**2)
+fbin = np.asarray(vcentral[1:])*np.pi*(b**2 - a**2)
 #fbin = np.asarray(vcentral)*np.pi*(b**2 - a**2)
 fbinmean = infilecorr['w0']*np.pi*(b**2 - a**2)
 cumf = np.cumsum(fbin)
@@ -341,7 +343,7 @@ fig6 = plt.figure(6)
     # plt.plot(infilecorr['cb'],chainw0[iw,0,], '-co', alpha = 0.1) #Plot starting ball
 plt.plot(rr, image, '-ks', alpha = 0.4)#, linewidth=2) #Plot truth #k .5alpha
 #plt.errorbar(infilecorr['cb'], vcentral, yerr = [vlower, vupper], xerr = herr, fmt='.b', elinewidth=1.5)
-plt.errorbar(infilecorr['cb'], vcentral, yerr = [vlower, vupper],xerr=herr,  fmt='.', elinewidth=2, c='#30a2da',markersize=12, alpha= 0.8) #b #003399
+plt.errorbar(infilecorr['cb'], vcentral[1:], yerr = [vlower[1:], vupper[1:]],xerr=herr,  fmt='.', elinewidth=2, c='#30a2da',markersize=12, alpha= 0.8) #b #003399
 plt.plot(infilecorr['cb'], infilecorr['w0'], 'o', markerfacecolor='None', markeredgewidth=1.,markeredgecolor='#fc4f30', zorder=1, alpha = 0.7) #r
 
 
