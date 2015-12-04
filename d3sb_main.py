@@ -138,26 +138,18 @@ def main():
     ALMA = 1 #Is this an ALMA data file
     basename = 'gp_nogap' #Name common to all files in this run
     if ALMA:
-        hiresvis = basename + '.combo.noisy.vis.npz'
-
-#.340GHz.vis.npz' #Model visibilities
+        hiresvis = basename + '.combo.noisy.vis.npz'#.340GHz.vis.npz' #Model visibilities
         synthimg = basename + '.combo.noisy.image.fits' #Synthesized image, for guesses
     else:
         hiresvis = basename + '.vis.fits' #Model visibilities
         synthimg = basename + '_1mm.fits' #Synthesized image, for guesses
 
     #Parameters
-    numbins = 30
-    binmin = .01
-#0.02 #Where to start bins in arcsec, but will be cutoff at rin
-
-    binmax = 1.3
-    ##gpgap?1.6 #Outer bin edge in arcsec
+    nbins = 30
     dpc = 140. #Distance to source in pc
-    rin = 0.005
-#gpgap0.1/dpc #Inner cutoff in arcsec
-#0.01
-
+    binmin = .01 #Where to start bins in arcsec, but will be cutoff at rin
+    binmax = 1.3 #Outer bin edge in arcsec
+    rin = 0.01/dpc #Inner cutoff in arcsec
     inclguess = 0. #Inclination in degrees
 
     #Emcee setup parameters
@@ -165,151 +157,53 @@ def main():
     nthreads = 12 #Number of threads
     MPIflag = 0 #Use MPI (1) or not (0)
 
-#    print 'No GP prior'
-
-
     # Get data
     if ALMA:
         data = getVisALMA('DATA/'+hiresvis)
     else:
         data = getVis('DATA/'+hiresvis) #Used for CARMA visibilities.
 
-    #Corrupt/change data as needed
+    #Get resolution
     u, v, dreal, dimag, dwgt = data
     freq = 340e9 #GHz
     cms=3e8 #m/s
     arcsec = 180./np.pi*3600.
-
     global res
     res = cms/freq/np.amax(np.sqrt(u**2 + v**2))*arcsec
 
+    # Choose radial bin locations
+    btmp = np.linspace(binmin, binmax/2., num=nbins/2) 
+    btmp2 = np.linspace(binmax/2., binmax, num=nbins/4)#np.logspace(np.log10(binmin), np.log10(binmax), num=nbins)
+    b=np.concatenate([btmp, btmp2[1:]])
+    dbins = rin, b
+    global bins
+    bins = dbins
+    a = np.roll(b, 1)
+    a[0] = rin
+    cb = 0.5*(a+b)
+    nbins = np.shape(b)[0]
+    print nbins, b
     
-    ## mu = 0
-    ## sigma = 1./np.sqrt(dwgt)
-    ## dwgt = dwgt * 10000.
-    ## ##replace existing data with changed data
-    ## data = u,v,dreal, dimag, dwgt
 
+    #Find mean values at bin locations from synthesized image
+    global wg
+    wg = synthguess(a, b, nbins, synthimg)
+    w0=wg
+    w0[w0<0]=0 #Don't save negative results
+    
+    #Truth for this model
+    global himage
+    rc = 0.7
+    himage  =  (cb/rc)**(-0.75) * np.exp(-(cb/rc)**(2.5))
+    Ic = 0.054976#For no gap
+    himage *=Ic
 
-    #If using a known model, find model with given basename from DATA/models.log
-    #
-    ## #Save the true values as rc ftot, gam
-    ## with open("DATA/models.log") as openfile:
-    ##      for line in openfile:
-    ##      	 if basename in line:
-    ##             params = line.split(', ')
-    ## try:
-    ##     rc = float(params[0])
-    ## #If the model can't be found, stop execution
-    ## except NameError:
-    ##     raise NameError,"Unable to find "+basename+" in DATA/models.log"
-    ## Ftot = float(params[1])
-    ## gam = float(params[2])
-    ## print 'Working on file with params: ',rc, Ftot, gam
-    ## rout = rc/dpc #Convert to appropriate units
-
-    ##(True) Model surface brightness
-    ##rvals = np.logspace(-2.1, .7, num=200) #Radial range chosen here. Denser than the actual input range.
-    ##wtrueall = ((2-gam)*Ftot/(2*np.pi*rout**2)) * (rvals/rout)**(-gam)*np.exp(-(rvals/rout)**(2.-gam)) #SB model
-
-
-
-    # Choose radial bins and determine initial guesses.
-    #The for loop and array are used to run this code snippet for multiple bin sizes.
-    binsizes = np.arange(numbins,numbins+1)
-    for nbins in binsizes:
-        b = np.zeros(nbins)
-
-        #Set bin locations
-####        btmp = np.linspace(binmin, 0.35, num = 6)
-####        btmp2 = np.linspace(0.35, 0.5, num = 8)
-####        btmp3 = np.linspace(0.5, 1.2, num=9)
-
-        ####b = np.concatenate([btmp, btmp2[1:], btmp3[1:]])
-
-        btmp = np.linspace(binmin, binmax/2., num=nbins/2) #gpgap
-        btmp2 = np.linspace(binmax/2., binmax, num=nbins/4)#gpgap
-        #np.logspace(np.log10(binmin), np.log10(binmax), num=nbins)
-        b=np.concatenate([btmp, btmp2[1:]])#gpgap
-#        b = np.concatenate([btmp[btmp<0.4], np.array([0.45, 0.6, binmax])])
-        #b = np.concatenate([btmp[btmp<0.35], np.array([0.35, 0.45, 0.6, binmax])])
-        numbins = np.shape(b) #Changing number of bins
-        nbins = numbins[0]
-        print numbins, b
-        a = np.roll(b, 1)
-        a[0] = rin
-        cb = 0.5*(a+b)
-
-        dbins = rin, b
-
-        #Calculate the jinc
-#        rbin = np.concatenate([np.array([rin]), b])
-#        udeproj = u #* np.cos(incl) #Deproject
-#        rho  = 1e3*np.sqrt(udeproj**2+v**2)
-#        jarg = np.outer(2.*np.pi*rbin, rho/206264.806427)
-#        jinc = sc.j1(jarg)/jarg
-
-
-        #model values at bin locations
-        ## wtrue = ((2-gam)*Ftot/(2*np.pi*rout**2)) * (cb/rout)**(-gam)*np.exp(-(cb/rout)**(2.-gam))
-
-        #Find mean values at bin locations from synthesized image
-        global wg
-        wg = synthguess(a, b, nbins, synthimg)
-        w0=wg
-
-
-        #Truth for this model
-        global himage
-        rc = 0.7
-        himage  =  (cb/rc)**(-0.75) * np.exp(-(cb/rc)**(2.5))
-        Ic = 0.054976#For no gap
-        himage *=Ic
-
-
-        #plt.plot(cb, wtrue, 'ok',
-        #plt.plot(cb, wg, 'rs')
-        #plt.show(block='False')
-        #pdb.set_trace()
-
-
-        #Optimization using Downhill Simplex
-        print "Entering minimization"
-        ## opt2 = minimize(opt_func, wg, args=(data, dbins), method='Nelder-Mead', options={'maxiter': 100000, 'maxfev': 100000})
-        ## w02 = (opt2.x)
-        ## print(w02)
-        ## print opt2
-        ## ## plt.plot(cb, wg, 'rs', markersize=12, alpha=0.4)
-        ## ## #    plt.plot(cb, wtrue, 'k', cb, w0, 'bo', w02, 'co')
-        ## ## plt.plot(rvals, wtrueall, 'k', cb, w0, 'bo', cb, w02, 'co')
-        ## ## plt.xlim(0.013,4.1)
-        ## ## #    plt.ylim(1e-9, 5)
-        ## ## ax = plt.gca()
-        ## ## #    ax.set_yscale('log')
-        ## ## #    ax.set_xscale('log')
-        ## ## plt.show(block=False)
-        print "Left minimization"
-
-        #Save initial guesses to file
-        filename = 'opt_'+basename+'_linear_'+str(nbins)
-
-        w0[w0<0]=0 #Don't save negative results
-        ##  w02[w02<0]=0
-
-        np.savez(filename, cb=cb, wg=wg,  w0=w0)
-        #pdb.set_trace()
-
+    #Save initial guesses to file
+    filename = 'opt_'+basename+'_linear_'+str(nbins) #this naming scheme could be improved
+    np.savez(filename, cb=cb, wg=wg,  w0=w0)
 
     #Continue from pre-optimized values for last bin choice
-    #Add for loop back in, if multiple bin runs desired
-
-    infile = np.load('opt_'+basename+'_linear_'+str(nbins)+'.npz')
-
-    #Print initial guesses
-    ##print 'Truth ', infile['wtrue']
-    print 'Mean ', infile['w0']
-    ##print 'Simplex ', infile['w02']
-
+#    infile = np.load('opt_'+basename+'_linear_'+str(nbins)+'.npz')
 
     #Set filename for emcee output.  Non-MPI version asks for user kbd input
     if not MPIflag:
@@ -318,22 +212,17 @@ def main():
         notes=''
     savename = basename+'_'+str(nbins)+'_'+notes
 
-    global bins
-    bins = dbins
-
     #Run emcee
-    emceeinit(infile['w0'], inclguess, nbins, nthreads, nsteps, savename+'_mean', data, dbins, MPIflag)
+    emceeinit(w0, inclguess, nbins, nthreads, nsteps, savename+'_mean', data, dbins, MPIflag)
 
 
 def lnprob(theta):
 
     a = theta[0]
 #    l = theta[1]
-    weights = theta[1:]#    a = .005
-#.005
+    weights = theta[1:]
 
-    l = 2. *res#    weights = theta
-
+    l = 2. *res
 
 #    if (l<np.amin(np.diff(b1)) or l>np.amax(np.diff(b1))):
 #        return -np.inf
