@@ -46,6 +46,12 @@ def emceeinit(w0, inclin, nbins, nthreads, nsteps, savename, data, dbins, MPI=0)
     p0 = np.zeros((nwalkers, ndim))
     print 'Nbins is now', nbins
 
+    #Needed for fixing unresolved starting balls
+    global b1
+    global rin
+    rin, b1 = dbins
+
+
     #Initialize walkers
     radii = np.arange(nbins)
     sizecorr = 1 #Currently Hardcoded; Scaling factor to treat different radii differently
@@ -53,7 +59,7 @@ def emceeinit(w0, inclin, nbins, nthreads, nsteps, savename, data, dbins, MPI=0)
     for walker in range(nwalkers):
         for rs in radii:
             rand = np.random.uniform(-(w0[rs]*scale*sizecorr), (w0[rs]*scale*sizecorr))
-            if rs < 3:
+            if b1[rs] <= res:
                 rand = np.random.uniform(0, 2.*w0[rs])
             p0[walker][rs+1] = w0[rs] + rand #Make it rs+2, if a & l vary
         # #Initialize a & l
@@ -78,9 +84,6 @@ def emceeinit(w0, inclin, nbins, nthreads, nsteps, savename, data, dbins, MPI=0)
 #    incl = 0.
     udeproj = u * np.cos(incl) #Deproject
     rho  = 1e3*np.sqrt(udeproj**2+v**2)
-    global b1
-    global rin
-    rin, b1 = dbins
     indices = np.arange(b1.size)
     global gpbins
     gpbins = dbins
@@ -136,6 +139,7 @@ def main():
     basename = 'gp_nogap' #Name common to all files in this run
     if ALMA:
         hiresvis = basename + '.combo.noisy.vis.npz'
+
 #.340GHz.vis.npz' #Model visibilities
         synthimg = basename + '.combo.noisy.image.fits' #Synthesized image, for guesses
     else:
@@ -325,11 +329,11 @@ def lnprob(theta):
 
     a = theta[0]
 #    l = theta[1]
-    weights = theta[1:]
-#    a = .005
+    weights = theta[1:]#    a = .005
 #.005
-    l = 2. *res
-#    weights = theta
+
+    l = 2. *res#    weights = theta
+
 
 #    if (l<np.amin(np.diff(b1)) or l>np.amax(np.diff(b1))):
 #        return -np.inf
