@@ -9,6 +9,7 @@ from datetime import datetime
 from getVis import getVis
 from getVisALMA import getVisALMA
 from synthimage import synthguess
+from synthimage import sb1d
 #from lnprob import lnprob
 from opt_func import opt_func
 import emcee
@@ -60,7 +61,7 @@ def emceeinit(w0, inclin, nbins, nthreads, nsteps, savename, data, dbins, MPI=0,
     for walker in range(nwalkers):
         for rs in radii:
             rand = np.random.uniform(-(w0[rs]*scale*sizecorr), (w0[rs]*scale*sizecorr))
-            if (b1[rs] <= res) and (allbinseq >0) :
+            if (b1[rs] <= res) and (allbinseq <1) :
                 rand = np.random.uniform(0, 2.*w0[rs])
             p0[walker][rs+1] = w0[rs] + rand #Make it rs+2, if a & l vary
         # #Initialize a & l
@@ -149,13 +150,13 @@ def main():
     nbins = 30
     dpc = 140. #Distance to source in pc
     binmin = .01 #Where to start bins in arcsec, but will be cutoff at rin
-    binmax = 1.3 #Outer bin edge in arcsec
+    binmax = 1.1 #Outer bin edge in arcsec
     rin = 0.01/dpc #Inner cutoff in arcsec
     inclguess = 0. #Inclination in degrees
 
     #Emcee setup parameters
     nsteps = 25000 #Number of steps to take
-    nthreads = 12 #Number of threads
+    nthreads = 2 #Number of threads
     MPIflag = 0 #Use MPI (1) or not (0)
 
     # Get data
@@ -165,6 +166,7 @@ def main():
         data = getVis('DATA/'+hiresvis) #Used for CARMA visibilities.
 
     #Get resolution
+    global dreal, dimag, dwgt
     u, v, dreal, dimag, dwgt = data
     freq = 340e9 #GHz
     cms=3e8 #m/s
@@ -173,9 +175,10 @@ def main():
     res = cms/freq/np.amax(np.sqrt(u**2 + v**2))*arcsec
 
     # Choose radial bin locations
-    btmp = np.linspace(binmin, binmax/3., num=nbins/2) 
-    btmp2 = np.logspace(np.log10(binmax/3), np.log10(binmax), num=nbins/2)
-    b=np.concatenate([btmp, btmp2[1:]])
+#    btmp = np.linspace(binmin, binmax/3., num=nbins/2) 
+#    btmp2 = np.logspace(np.log10(binmax/3), np.log10(binmax), num=nbins/2)
+#    b=np.concatenate([btmp, btmp2[1:]])
+    b = np.linspace(binmin, binmax, num=nbins-1) 
     dbins = rin, b
     global bins
     bins = dbins
@@ -183,17 +186,18 @@ def main():
     a[0] = rin
     cb = 0.5*(a+b)
     nbins = np.shape(b)[0]
-    print nbins, b
-    
+#    print nbins, b
+    print 'TMP res'
+#    res = np.amin(np.diff(cb))/2.
+
 
     #Find mean values at bin locations from synthesized image
     global wg
     wg = synthguess(a, b, nbins, synthimg)
     w0=wg
     w0[w0<0]=0 #Don't save negative results
-    print wg
-    pdb.set_trace()
     
+
     #Truth for this model
     global himage
     rc = 0.7
@@ -223,11 +227,12 @@ def main():
 
 
     #Run emcee
-    global dreal, dimag, dwgt
+
     dreal = bvisre
     dimag = bvisim
     dwgt = 1./bsig**2.
     
+    print "Now going to emcee"
     initchain = emceeinit(w0, inclguess, nbins, nthreads, 10000, savename+'_mean', binneddata, dbins, MPIflag)
     print "I did my initial inference of 10000 steps on binned visibilities"
 
@@ -238,14 +243,18 @@ def main():
     vcentral = np.percentile(samplesw0, 50, axis=0)
     print vcentral
 
-    ## plt.plot(cb, vcentral[1:],'.')
-    ## plt.plot(cb, himage, '-k', alpha=0.4)
-    ## plt.plot(cb, wg, 'rs', alpha = 0.2)
-    ## ax = plt.gca()
-    ## ax.set_xscale('log')
-    ## ax.set_yscale('log')
-    ## plt.show()
-    ## pdb.set_trace()
+    rflat, sbflat = sb1d(synthimg)
+    fig0 = plt.figure(1)
+    plt.plot(rflat, sbflat, '.y', alpha = 0.5)
+    plt.plot(cb, vcentral[1:],'.')
+    plt.plot(cb, himage, '-k', alpha=0.4)
+    plt.plot(cb, wg, 'rs', alpha = 0.2)
+    ax = plt.gca()
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    fig0.savefig("preinference.png")
+    #plt.show()
+    pdb.set_trace()
 
     #Run again with central values        
     emceeinit(vcentral[1:], inclguess, nbins, nthreads, nsteps, savename+'_mean', data, dbins, MPIflag, allbinseq = 1)
