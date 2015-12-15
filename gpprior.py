@@ -40,21 +40,30 @@ def calcprior(iweights, bins, a, l, meanguess = None):
 
     C = calccovar(cb, a, l)
 
+    #Non-Cholesky method
+    Cinv = np.linalg.inv(C)
+    prior = np.dot(np.dot(weights,Cinv), weights) #Check that this is correct
+    (sign,logdet) = np.linalg.slogdet(C)
+    if sign < 0: 
+        plt.imshow(C, interpolation='nearest', cmap='Blues', origin = 'upper')
+        plt.colorbar()
+        plt.savefig('reglogdet'+str(sign)+str(np.around(logdet, decimals = 4))+'.png')
+        plt.clf() 
+    
+    if l < np.amin(np.abs(np.diff(cb))):
+        print 'L is too small'
+    print '*****The logdet is', sign, ' * ', logdet
+
     # print 'Hi'
     # # plt.savefig('tmp'+str(np.around(clogdet, decimals=1))+'.png')
     # plt.clf()
     # print 'Bye'
 
     #Cholesky factorization, to invert it
-    chofac, flag = cho_factor(C)
-
+    chofac, flag = cho_factor(C) #ADD EXCEPTION HANDLING FOR LINALGERROR
+    
     #Find log det
     clogdet = np.sum(2 * np.log((np.diag(chofac))))
-
-    #Non-Cholesky method
-    # Cinv = np.linalg.inv(C)
-    # prior = np.dot(np.dot(weights,Cinv), weights) #Check that this is correct
-    # (sign,logdet) = np.linalg.slogdet(C)
 
 
     # maxneg = 250.
@@ -74,10 +83,6 @@ def calcprior(iweights, bins, a, l, meanguess = None):
     #result =
     prod = (np.dot(weights, cho_solve((chofac, flag), weights)))
 
-    # plt.imshow(C, interpolation='nearest', cmap='Blues', origin = 'upper')
-    # plt.colorbar()
-    # plt.savefig('prod'+str(np.around(prod, decimals = 2))+'.png')
-    # plt.clf()
 
     return prod + clogdet + b.shape[0]*np.log(2.*np.pi)
 
