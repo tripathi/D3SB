@@ -43,7 +43,7 @@ def emceeinit(w0, inclin, nbins, nthreads, nsteps, savename, data, dbins, MPI=0,
                 sys.exit(0)
 
     #Setup
-    ndim = nbins + 1 #Removing inclination as a variable.
+    ndim = nbins #Removing inclination as a variable.
     nwalkers = 4*ndim
     p0 = np.zeros((nwalkers, ndim))
     print 'Nbins is now', nbins
@@ -63,9 +63,9 @@ def emceeinit(w0, inclin, nbins, nthreads, nsteps, savename, data, dbins, MPI=0,
             rand = np.random.uniform(-(w0[rs]*scale*sizecorr), (w0[rs]*scale*sizecorr))
             if (b1[rs] <= res) and (allbinseq <1) :
                 rand = np.random.uniform(0, 2.*w0[rs])
-            p0[walker][rs+1] = w0[rs] + rand #Make it rs+2, if a & l vary
+            p0[walker][rs] = w0[rs] + rand #Make it rs+2, if a & l vary
         # #Initialize a & l
-        p0[walker][0] = np.random.uniform(.0001, .5) #When adding back in, make prev statement rs+1
+#        p0[walker][0] = np.random.uniform(.0001, .5) #When adding back in, make prev statement rs+1
 #        while True:
 #            p0[walker][1] = np.random.gamma(2., 2.)*np.amax(dbins[1:])/20. + np.amin(np.diff(dbins[1:]))
 #            if (p0[walker][1]>=np.amin(dbins[1:]) or p0[walker][1]<=np.amax(dbins[1:])):
@@ -105,7 +105,9 @@ def emceeinit(w0, inclin, nbins, nthreads, nsteps, savename, data, dbins, MPI=0,
 
     #Run emcee, and time it
     tic = time.time()
+    print "I'm line 110, before the threads"
     sampler.run_mcmc(p0, nsteps)
+    print "I'm line 112, after the threads"
     toc = time.time()
 
     #Display and record run information
@@ -153,10 +155,11 @@ def main():
     binmax = 1.1 #Outer bin edge in arcsec
     rin = 0.01/dpc #Inner cutoff in arcsec
     inclguess = 0. #Inclination in degrees
+    doingpreinference = 1
 
     #Emcee setup parameters
-    nsteps = 25000 #Number of steps to take
-    nthreads = 2 #Number of threads
+    nsteps = 2000 #Number of steps to take
+    nthreads = 12 #Number of threads
     MPIflag = 0 #Use MPI (1) or not (0)
 
     # Get data
@@ -207,7 +210,7 @@ def main():
 
     #Save initial guesses to file
     filename = 'opt_'+basename+'_linear_'+str(nbins) #this naming scheme could be improved
-    np.savez(filename, cb=cb, wg=wg,  w0=w0)
+    np.savez(filename, cb=cb, wg=wg,  w0=w0, dbins = dbins)
 
     #Continue from pre-optimized values for last bin choice
 #    infile = np.load('opt_'+basename+'_linear_'+str(nbins)+'.npz')
@@ -219,61 +222,90 @@ def main():
         notes=''
     savename = basename+'_'+str(nbins)+'_'+notes
 
-    #Bin visibilities
-    newbins = np.arange(1., np.amax(np.sqrt(u**2 + v**2)), 50.)
-    binnedvis = deprojectVis('DATA/'+hiresvis, newbins, nu=freq)
-    brho, bvisre, bvisim, bsig, bRuv, breal = binnedvis
-    binneddata = brho, np.zeros_like(brho), bvisre, bvisim, bsig #Hack to get new u and v
 
 
-    #Run emcee
+    if doingpreinference:
+            #Bin visibilities
+        newbins = np.arange(1., np.amax(np.sqrt(u**2 + v**2)), 50.)
+        binnedvis = deprojectVis('DATA/'+hiresvis, newbins, nu=freq)
+        brho, bvisre, bvisim, bsig, bRuv, breal = binnedvis
+        binneddata = brho, np.zeros_like(brho), bvisre, bvisim, bsig #Hack to get new u and v
 
-    dreal = bvisre
-    dimag = bvisim
-    dwgt = 1./bsig**2.
-    
-    print "Now going to emcee"
-    initchain = emceeinit(w0, inclguess, nbins, nthreads, 10000, savename+'_mean', binneddata, dbins, MPIflag)
-    print "I did my initial inference of 10000 steps on binned visibilities"
 
-    #Flatten chain
-    cstart = 0
-    ndim = nbins + 1 #CHANGE accordingly
-    samplesw0 = initchain[:, cstart:, :].reshape((-1,ndim))
-    vcentral = np.percentile(samplesw0, 50, axis=0)
-    print vcentral
+        #Run emcee
 
-    rflat, sbflat = sb1d(synthimg)
-    fig0 = plt.figure(1)
-    plt.plot(rflat, sbflat, '.y', alpha = 0.5)
-    plt.plot(cb, vcentral[1:],'.')
-    plt.plot(cb, himage, '-k', alpha=0.4)
-    plt.plot(cb, wg, 'rs', alpha = 0.2)
-    ax = plt.gca()
-    ax.set_xscale('log')
-    ax.set_yscale('log')
-    fig0.savefig("preinference.png")
-    #plt.show()
-    pdb.set_trace()
+        dreal = bvisre
+        dimag = bvisim
+        dwgt = 1./bsig**2.
+        
+        print "Now going to emcee"
+        initchain = emceeinit(w0, inclguess, nbins, nthreads, 20000, savename+'_init', binneddata, dbins, MPIflag)
+        print "I did my initial inference of 10000 steps on binned visibilities"
+        pdb.set_trace()
+        
 
-    #Run again with central values        
-    emceeinit(vcentral[1:], inclguess, nbins, nthreads, nsteps, savename+'_mean', data, dbins, MPIflag, allbinseq = 1)
+        #Flatten chain
+        cstart = 0
+        ndim = nbins #+ 1 #CHANGE accordingly
+        samplesw0 = initchain[:, cstart:, :].reshape((-1,ndim))
+        vcentral = np.percentile(samplesw0, 50, axis=0)
+        print vcentral
 
+        rflat, sbflat = sb1d(synthimg)
+        fig0 = plt.figure(1)
+        plt.plot(rflat, sbflat, '.y', alpha = 0.5)
+        plt.plot(cb, vcentral,'.')
+        plt.plot(cb, himage, '-k', alpha=0.4)
+        plt.plot(cb, wg, 'rs', alpha = 0.2)
+        ax = plt.gca()
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        fig0.savefig("preinference.png")
+        #plt.show()
+        pdb.set_trace()
+
+        u, v, dreal, dimag, dwgt = data
+        #Run again with central values        
+        emceeinit(vcentral[1:], inclguess, nbins, nthreads, nsteps, savename+'_mean', data, dbins, MPIflag, allbinseq = 1)
+    else:
+        nchain = emceeinit(w0, inclguess, nbins, nthreads, nsteps, savename+'_mean', data, dbins, MPIflag)
+        cstart = 0
+        samplesw0 = nchain[:, cstart:, :].reshape((-1,nbins))
+        vcentral = np.percentile(samplesw0, 50, axis=0)
+        print vcentral
+
+        rflat, sbflat = sb1d(synthimg)
+        fig0 = plt.figure(1)
+        plt.plot(rflat, sbflat, '.y', alpha = 0.5)
+        plt.plot(cb, vcentral,'.')
+        plt.plot(cb, himage, '-k', alpha=0.4)
+        plt.plot(cb, wg, 'rs', alpha = 0.2)
+        ax = plt.gca()
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+#        fig0.savefig("nopenalty.png")
+        plt.show()
+        pdb.set_trace()
+        
+                
 def lnprob(theta):
 
-    a = theta[0]
-#    l = theta[1]
-    weights = theta[1:]
+##     a = theta[0]
+## #    l = theta[1]
+##     weights = theta[1:]
 
-    l = 2. *res
+##     l = 2. *res
 
-#    if (l<np.amin(np.diff(b1)) or l>np.amax(np.diff(b1))):
-#        return -np.inf
+## #    if (l<np.amin(np.diff(b1)) or l>np.amax(np.diff(b1))):
+## #        return -np.inf
 
-    #if (weights<-20).any() or (weights>20).any():
-#        return -np.inf
+##     #if (weights<-20).any() or (weights>20).any():
+## #        return -np.inf
 
-    if (weights<0).any() or a<0:
+    weights = theta
+    
+    if (weights<0).any():
+         ## or a<0:
         return -np.inf
 
     mreal = d3sbModel(weights)
@@ -281,17 +313,18 @@ def lnprob(theta):
 
     chi2 = np.sum(dwgt*(dreal-mreal)**2) + np.sum(dwgt*(dimag-mimag)**2)
     lnp = -0.5*chi2
-    prior = -0.5*gp.calcprior(weights, gpbins, a, l, himage)
-    posterior = lnp + prior
+    ## prior = -0.5*gp.calcprior(weights, gpbins, a, l, himage)
+    ## posterior = lnp + prior
 
-##     dw = np.diff(weights)
-##     penalty = np.sum(dw[1:]*dw[:-1] <0)
-##     rcoeff = 1.#0.01
-##     regularization =float(rcoeff*2.*np.shape(dreal)[0]/np.shape(weights)[0])
+    dw = np.diff(weights)
+    penalty = np.sum(dw[1:]*dw[:-1] <0)
+    rcoeff = 1.#0.01
+    regularization =float(rcoeff*2.*np.shape(dreal)[0]/np.shape(weights)[0])
 
-##     chi2tot = chi2+regularization*penalty
+    chi2tot = chi2
+    ##+regularization*penalty
 ## #    print 'Extra penalty term/chi2 ', regularization*penalty/chi2
-##     posterior = -0.5*chi2tot
+    posterior = -0.5*chi2tot
 #    posterior = lnp + prior
 
     return posterior
