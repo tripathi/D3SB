@@ -5,7 +5,8 @@ from discreteModel import discreteModel
 
 
 # the output filename
-filename = 'DATA/test'
+print 'Noise-free fake data'
+filename = 'DATA/test_noisefreevis'
 
 
 # define a high resolution set of bins for an "idealized" model
@@ -45,11 +46,11 @@ hi_vis = discreteModel(itheta, [hu, hv], bins)
 
 # add (white) noise to the model visibilities; record noise in weights
 lnoise = np.random.normal(loc=0., scale=lrms*np.sqrt(len(lu)), size=len(lu))
-lo_vis += lnoise + 1j*lnoise
+#lo_vis += lnoise + 1j*lnoise
 lo_wgt = 1./lnoise**2
 
 hnoise = np.random.normal(loc=0., scale=hrms*np.sqrt(len(hu)), size=len(hu))
-hi_vis += hnoise + 1j*hnoise
+#hi_vis += hnoise + 1j*hnoise
 hi_wgt = 1./hnoise**2
 
 
@@ -60,4 +61,4 @@ combo_v = np.concatenate([lv, hv])
 combo_vis = np.concatenate([lo_vis, hi_vis])
 combo_wgt = np.concatenate([lo_wgt, hi_wgt])
 os.system('rm -rf '+filename+'.vis.npz')
-np.savez(filename+'.vis', u=combo_u, v=combo_v, Vis=combo_vis, Wgt=combo_wgt)
+np.savez(filename+'.vis', u=combo_u, v=combo_v, Vis=combo_vis, Wgt=combo_wgt, SB=SB, cb=cb)
