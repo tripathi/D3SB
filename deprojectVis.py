@@ -1,87 +1,55 @@
 import numpy as np
-from astropy.io import fits
-import pdb
 
-def deprojectVis(file, bins, incl=0., PA=0., offset=[0., 0.], nu=1e12, wsc=1, fitsfile=0.):
+def deproject_vis(data, bins=np.array([0.]), incl=0., PA=0., offx=0., offy=0., 
+                  errtype='mean'):
 
     # - read in, parse data
-    # - Read from FITS file or .npz, as appropriate
-    if (fitsfile):
-        dvis  = fits.open(file)
-        u = 1e-3*dvis[0].data.par(0)[:]*nu#/2.9974e8
-        v = 1e-3*dvis[0].data.par(1)[:]*nu#/2.9974e8
-        real = np.squeeze(dvis[0].data['Data'])[:,0]
-        imag = np.squeeze(dvis[0].data['Data'])[:,1]
-        wgt  = np.squeeze(dvis[0].data['Data'])[:,2]
-        dvis.close()
-    else:
-        vin = np.load(file)
-        freq = nu
-        u = 1e-3*vin['u']*freq/2.9974e8
-        v = 1e-3*vin['v']*freq/2.9974e8
-        real = vin['Re']
-        imag = vin['Im']
-        wgt = vin['Wt']
+    u, v, vis, wgt = data
 
-    # - polar coordinates
-    rho   = np.sqrt(u**2 + v**2)
-    theta = np.arctan2(v, u)
+    # - convert keywords into relevant units
+    inclr = np.radians(incl)
+    PAr = 0.5*np.pi-np.radians(PA)
+    offx *= -np.pi/(180.*3600.)
+    offy *= -np.pi/(180.*3600.)
 
-    # - amps and phases
-    amp  = np.sqrt(real**2 + imag**2)
-    pha  = np.arctan2(imag, real)
+    # - change to a deprojected, rotated coordinate system
+    uprime = (u*np.cos(PAr) + v*np.sin(PAr)) 
+    vprime = (-u*np.sin(PAr) + v*np.cos(PAr)) * np.cos(inclr)
+    rhop = np.sqrt(uprime**2 + vprime**2)
 
-    # - resolve quadrant ambiguities
-    pha[real<0] += 2.*np.pi
-    theta[v<0] += 2.*np.pi
+    # - phase shifts to account for offsets
+    shifts = np.exp(-2.*np.pi*1.0j*(u*-offx + v*-offy))
+    visp = vis*shifts
+    realp = visp.real
+    imagp = visp.imag
 
-    # - reweight
-    wgt *= wsc
+    # - if requested, return a binned (averaged) representation
+    if (bins.size > 1.):
+        bins *= 1e3	# scale to lambda units (input in klambda)
+        bwid = 0.5*(bins[1]-bins[0])	# only for evenly-space linear bins
+        bvis = np.zeros_like(bins, dtype='complex')
+        berr = np.zeros_like(bins, dtype='complex')
+        for ib in np.arange(len(bins)):
+            inb = np.where((rhop >= bins[ib]-bwid) & (rhop < bins[ib]+bwid))
+            if (len(inb[0]) >= 5):
+                bRe, eRemu = np.average(realp[inb], weights=wgt[inb], 
+                                        returned=True)
+                eRese = np.std(realp[inb])
+                bIm, eImmu = np.average(imagp[inb], weights=wgt[inb], 
+                                        returned=True)
+                eImse = np.std(imagp[inb])
+                bvis[ib] = bRe+1j*bIm
+                if (errtype == 'scat'):
+                    berr[ib] = eRese+1j*eImse
+                else: berr[ib] = 1./np.sqrt(eRemu)+1j/np.sqrt(eImmu)
+            else:
+                bvis[ib] = 0+1j*0
+                berr[ib] = 0+1j*0
+            parser = np.where(berr.real != 0)
+            output = bins[parser], bvis[parser], berr[parser]
+        return output       
+        
+    # - if not, returned the unbinned representation
+    output = rhop, realp+1j*imagp, 1./np.sqrt(wgt)
 
-    # - de-project, rotate coordinates
-    dmaj = rho*np.cos(theta-(np.radians(180.-PA)))*np.cos(np.radians(incl))
-    dmin = rho*np.sin(theta-(np.radians(180.-PA)))
-    Ruv = np.sqrt(dmaj**2+dmin**2)
-
-    # - shifts from phase center
-    dra  = -np.radians(offset[0]/3600.)
-    ddec = -np.radians(offset[1]/3600.)
-    real = amp*np.cos(pha+2.*np.pi*1e3*(u*dra+v*ddec))
-    imag = amp*np.sin(pha+2.*np.pi*1e3*(u*dra+v*ddec))
-
-    # - toss any flagged data
-    Ruv  = Ruv[wgt>0]
-    real = real[wgt>0]
-    imag = imag[wgt>0]
-    wgt  = wgt[wgt>0]
-
-    # - azimuthal averaging
-    bwid = 0.5*(bins[1]-bins[0])
-    bmin = bins-bwid
-    bmax = bins+bwid
-    nbin = np.size(bins)
-    b_re = np.zeros_like(bins)
-    b_im = np.zeros_like(bins)
-    b_er = np.zeros_like(bins)
-    b_in = np.zeros_like(bins)
-
-    for i in range(nbin):
-        if ((Ruv > bmin[i]) & (Ruv <= bmax[i])).any():
-            re_in = real[(Ruv > bmin[i]) & (Ruv <= bmax[i])]
-            im_in = imag[(Ruv > bmin[i]) & (Ruv <= bmax[i])]
-            wt_in = wgt[(Ruv > bmin[i]) & (Ruv <= bmax[i])]
-            #print(np.std(re_in)/np.mean(1./np.sqrt(wt_in)))
-            b_re[i], b_wt = np.average(re_in, weights=wt_in, returned=True)
-            b_im[i] = np.average(im_in, weights=wt_in)
-            b_er[i] = np.sqrt(1./b_wt)
-            b_in[i] = np.size(re_in)
-
-    # - remove bins with no data
-    bins = bins[b_in > 0]
-    b_re = b_re[b_in > 0]
-    b_im = b_im[b_in > 0]
-    b_er = b_er[b_in > 0]
-
-    # - package results for return
-    output = bins, b_re, b_im, b_er, Ruv, real
     return output
