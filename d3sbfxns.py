@@ -67,7 +67,8 @@ def sbmeanbin(rin, b, rpim, SBpim):
 
 def sbguess(file, rin, b, PA=0., incl=0., offx=0., offy=0., plotting=0, freq=340e9, dsource = 140.):
     """
-    Return mean surface brightness in each bin
+    Return mean surface brightness in each bin.
+    A sample usage of the above functions.
     """
 
     #Read in data
@@ -102,9 +103,37 @@ def sbguess(file, rin, b, PA=0., incl=0., offx=0., offy=0., plotting=0, freq=340
         fig2 = plt.figure()
         plt.plot(cb, np.abs(sigmabin/sbbin), '-.b')
         plt.plot(cb, np.ones_like(cb), ':k')
-        plt.show(block='False')
-        
-
+        plt.savefig('sbcombare.png')
+#        plt.show(block='False')
              
     return sbbin
 
+def initwalkers(cb, pinit, alleq=0, res=0.):
+    """
+    Perturb param. estimates to initialize emcee walkers
+    Return walker positions
+    :param cb: Bin centers
+    :param pinit: Parameter estimates
+    If estimating inclination parameters, 4 are assumed.
+    They must be put first, before the bins. !!
+    """
+    nbins = len(cb)
+    ndim = len(pinit)
+    nwalkers = 4*ndim
+    p0 = np.zeros((nwalkers, ndim))
+
+    
+    for walker in range(nwalkers):
+        if alleq:
+            p0[walker] = pinit * (1.+np.random.uniform(-0.2, 0.2, ndim))
+        else:
+            nextra = ndim - nbins
+            inner = np.where(cb<res)
+            outer = np.where(cb>=res)
+            p0[walker][nextra+inner] = pinit[inner] * (1.+np.random.uniform(0, 2, np.size(inner)))
+            p0[walker][nextra+outer] = pinit[outer] * (1.+np.random.uniform(-0.2, 2, np.size(outer)))
+            p0[walker][0:nextra] = pinit[0:nextra]+(1.+np.random.uniform(-0.2, 0.2, nextra))            
+            
+    #Not doing it Sean's way >>
+
+    return p0
