@@ -114,26 +114,90 @@ def initwalkers(cb, pinit, alleq=0, res=0.):
     Return walker positions
     :param cb: Bin centers
     :param pinit: Parameter estimates
-    If estimating inclination parameters, 4 are assumed.
-    They must be put first, before the bins. !!
+    Any inclination or other params must be put first, before the bins. !!
     """
     nbins = len(cb)
     ndim = len(pinit)
     nwalkers = 4*ndim
     p0 = np.zeros((nwalkers, ndim))
 
+    if alleq == 0:
+        nextra = ndim - nbins
+        inner = np.where(cb<res)
+        outer = np.where(cb>=res)
     
     for walker in range(nwalkers):
         if alleq:
             p0[walker] = pinit * (1.+np.random.uniform(-0.2, 0.2, ndim))
         else:
-            nextra = ndim - nbins
-            inner = np.where(cb<res)
-            outer = np.where(cb>=res)
-            p0[walker][nextra+inner] = pinit[inner] * (1.+np.random.uniform(0, 2, np.size(inner)))
-            p0[walker][nextra+outer] = pinit[outer] * (1.+np.random.uniform(-0.2, 2, np.size(outer)))
+            if len(inner) > 0:
+                p0[walker][np.add(nextra,inner)] = pinit[inner] * (1.+np.random.uniform(0, 2, np.size(inner)))
+            p0[walker][np.add(nextra,outer)] = pinit[outer] * (1.+np.random.uniform(-0.2, 2, np.size(outer)))
             p0[walker][0:nextra] = pinit[0:nextra]+(1.+np.random.uniform(-0.2, 0.2, nextra))            
-            
-    #Not doing it Sean's way >>
+            #This doesn't enforce monotonicity the way Sean does >>      
 
     return p0
+
+def runemcee(p0, nsteps, savename, MPI=0):
+    """
+    Run emcee
+    :param p0: Initial walker positions
+    :param nsteps: Number of MCMC steps to take
+    :param savename: Output file name prefix
+    :param MPI: Boolean whether to use MPI (default MPI=0)
+    """
+    #Number of parameters and walkers, set by p0
+    ndim = np.shape(p0)[1]
+    nwalkers = np*4
+
+    #Initialize the MPI-based pool used for parallelization.
+    if MPI:
+        pool = MPIPool()
+        if not pool.is_master():
+                # Wait for instructions from the master process.
+                pool.wait()
+                sys.exit(0)
+
+    #Initialize sampler
+    if MPI:
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, pool=pool)
+    else:
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, threads=nthreads)
+
+    #Write log file
+    f = open('emcee.log', 'a')
+    FORMAT = '%m-%d-%Y-%H%M'
+    f.write(savename+', '+str(ndim)+', '+str(nsteps)+', '+datetime.now().strftime(FORMAT))
+
+    #Run emcee, and time it
+    tic = time.time()
+    sampler.run_mcmc(p0, nsteps)
+    toc = time.time()
+
+    #Display and record run information
+    print 'Elapsed emcee run time:', ((toc-tic)/60.)
+    print 'Acceptance:', sampler.acceptance_fraction
+    f.write(' ,'+str(round((toc-tic)/60., 2))+', '+str(np.round(np.mean(sampler.acceptance_fraction),2))+'\n')
+    f.close()
+
+
+    #Save the results in a binary file
+    np.save('mc_'+savename,sampler.chain)
+
+    if MPI:
+        #Close the processes.
+        pool.close()
+
+    print 'Done with this emcee run'
+
+    #Allow user interaction at end, if not using MPI
+#    if not MPI:
+#        pdb.set_trace()
+
+    return sampler.chain
+
+def lnprob(theta):
+    return posterior
+
+def discretemodel(theta):
+    return vis
