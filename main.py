@@ -67,19 +67,52 @@ def runemcee(p0, nsteps, savename, MPI=0):
 
     return sampler.chain
 
-def lnprob(theta, data, bins):
-    return posterior
+def lnprob(theta, dvis, dwgt):
+    """
+    Compute log posterior for current parameter values
+    :param theta: Inclination params and bin coefficients (Inclination params must be put first, before the bins)
+    :param dvis: Complex visibilities
+    :param dwgt: Visibility weights, currently only real
+    """  
+    # unpack the parameters
+    incl = theta[0]
+    PA   = theta[1]
+    offx = theta[2]
+    offy = theta[3]
+    w = theta[4:]
+
+    #PRIORS    
+    #Enforce positive surface brightnesses
+    if (w<0).any():
+        return -np.inf
+    #Calculate penalty, assuming regulariz. param coefficient of 1
+    dw = np.diff(w)
+    prior = np.sum(dw[1:]*dw[:-1] <0, dtype='float') * 2.*len(dreal) / len(w)
+
+    #LIKELIHOOD
+    #Compute a chi2 value (proportional to log-likelihood)
+    mvis = discretemodel(theta)
+    ## mvis = discretemodel([incl, PA, np.array([offx, offy]), p]) #What Sean does, but seems unnec. complicated
+    chi2 = np.sum(((dvis.real-mvis.real)/dwgt)**2 + 
+                  ((dvis.imag-mvis.imag)/dwgt)**2) #Currently using dwgt both times >>
+
+    # return a log-posterior value
+    return -0.5*(chi2 + prior)
 
 def discretemodel(theta):
     """
-    Return visibilities corresponding to binned surface brightness
+    Return complex visibilities corresponding to binned surface brightness
     :param theta: Inclination params and bin coefficients (Inclination params must be put first, before the bins)
     Expects data and bins to be saved as global variables elsewhere in this same file
     Expects rbin = np.concatenate([np.array([rin]), b]), bsize, u, & v
     """
-    incl, PA, offset, w = theta
-    ## rin, b = bins #~~~
-    ## u, v = uvsamples #~~~			# in **lambda** units >>
+#    incl, PA, offset, w = theta
+    # unpack the parameters
+    incl = theta[0]
+    PA   = theta[1]
+    offx = theta[2]
+    offy = theta[3]
+    w = theta[4:]
 
     # convert angles to radians
     inclr = np.radians(incl)
@@ -92,7 +125,6 @@ def discretemodel(theta):
     rho = np.sqrt(uprime**2 + vprime**2) * np.pi / (180.*3600.)
 
     # re-orient arrays
-    rbin = np.concatenate([np.array([rin]), b]) #~~~
     wbin = np.append(np.concatenate([np.array([0.0]), w]), 0.)
     ww = wbin-np.roll(wbin, -1)
     intensity = np.delete(ww, bsize+1)
@@ -100,16 +132,26 @@ def discretemodel(theta):
     # compute the visibilities
     jarg = np.outer(2.*np.pi*rbin, rho)
     jinc = sc.j1(jarg)/jarg
-    vis = np.dot(2.*np.pi*rbin**2*intensity, jinc)
-
+    vrealnoshift = np.dot(2.*np.pi*rbin**2*intensity, jinc)
+    
     # impart a phase center shift
     shift = np.exp(-2.*np.pi*1.0j*((u*-offr[0]) + (v*-offr[1])))
-    model_vis = vis*shift
-       
-    return model_vis
+    vreal = vrealnoshift*shift
+    vimag = np.zeros_like(vreal)
 
+    vis = vreal + 1.0j*vimag          
+    return model_vis
 
 def main():
 
 #Choose bins (b, rin)
-#Make global rbin, bsize, u, v
+
+
+    #Globals needed by discretemodel
+    global rbin
+    rbin = np.concatenate([np.array([rin]), b]) #~~~
+    global bsize
+    bsize = b.size
+    
+    global u, v
+    u, v, dreal, dimag, dwgt = data 	# U and V must be in **lambda** units >>
