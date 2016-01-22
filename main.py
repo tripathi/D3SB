@@ -8,6 +8,17 @@ import numpy as np
 import scipy.special as sc
 import pdb as pdb
 import matplotlib.pyplot as plt
+import d3sbfxns as f
+
+def readinVis(datafile):
+    """
+    Extracts visibility data from a CASA and python generated .npz file.
+    :param datafile: name of .npz file
+    """
+    datfile = np.load(datafile)
+    data = datfile['u'], datfile['v'], datfile['Vis'], datfile['Wgt']   
+    return data
+
 
 def runemcee(p0, nsteps, savename, MPI=0):
     """
@@ -87,14 +98,15 @@ def lnprob(theta, dvis, dwgt):
         return -np.inf
     #Calculate penalty, assuming regulariz. param coefficient of 1
     dw = np.diff(w)
-    prior = np.sum(dw[1:]*dw[:-1] <0, dtype='float') * 2.*len(dreal) / len(w)
+    prior = np.sum(dw[1:]*dw[:-1] <0, dtype='float') * 2.*len(dwgt) / len(w)
 
     #LIKELIHOOD
     #Compute a chi2 value (proportional to log-likelihood)
     mvis = discretemodel(theta)
     ## mvis = discretemodel([incl, PA, np.array([offx, offy]), p]) #What Sean does, but seems unnec. complicated
-    chi2 = np.sum(((dvis.real-mvis.real)/dwgt)**2 + 
-                  ((dvis.imag-mvis.imag)/dwgt)**2) #Currently using dwgt both times >>
+    ## chi2 = np.sum(((dvis.real-mvis.real)/dwgt)**2 + 
+    ##               ((dvis.imag-mvis.imag)/dwgt)**2) #Currently using dwgt both times >>
+    chi2 = np.sum( dwgt*(dvis.real-mvis.real)**2 + dwgt*(dvis.imag-mvis.imag)**2 )                  
 
     # return a log-posterior value
     return -0.5*(chi2 + prior)
@@ -143,15 +155,106 @@ def discretemodel(theta):
     return model_vis
 
 def main():
+    """
+    Run D3SB, using the inputs defined in this function
+    """    
+    ############
+    # 1.Inputs #
+    ############
+    basename = 'gp_nogap' #Name common to all files in this run
+    freq = 340e9 #Hz
+    dpc = 140. #Distance to source in pc
+     
+    #Parameters
+    nbins = 30
+    binmin = .01 #Where to start bins in arcsec, but will be cutoff at rin
+    binmax = 1.1 #Outer bin edge in arcsec
+    rin = 0.01/dpc #Inner cutoff in arcsec
+    
+    inclguess = 0. #Inclination in degrees
+    PAguess = 0. #position angle in degrees
+    offxguess = offyguess = 0. #offsets in arcsec
 
-#Choose bins (b, rin)
+    #Emcee setup parameters
+    nsteps = 2000 #Number of steps to take
+    nthreads = 12 #Number of threads
+    MPIflag = 0 #Use MPI (1) or not (0)
+    doingpreinference = 1
+
+    ###################
+    # 2. Read in data #
+    ###################
+    hiresvis = 'DATA/' + basename + '.npz' #Model visibilities
+    synthimg = 'DATA/' + basename + '.image.fits' #Synthesized image, for guesses     
+
+    #Read in visibilities
+    #To avoid having problems and two different functions between pre-inference and real run,
+    #dvis is an argument, not a global. >>
+    data = readinVis('DATA/'+hiresvis) #Used for CARMA visibilities.
+    global u, v
+    u, v, dvis, dwgt = data
+
+    #Read in surface brightness 
+    rsb, sb, beaminfo = f.sbdata(synthimg, PAguess, inclguess, offxguess, offyguess)
+
+    ##########################################
+    # 3. Set bins & find mean SB in each bin #
+    ##########################################
+    # Choose radial bin locations (b, rin)
+    
+    #Get mean and stddev in each bin
+    sbbin, sigmabin = sbmeanbin(rin, b, rsb, sb)
+    cb = makebins(rin, b)
 
 
     #Globals needed by discretemodel
-    global rbin
+    global rbin, bsize
     rbin = np.concatenate([np.array([rin]), b]) #~~~
-    global bsize
     bsize = b.size
     
-    global u, v
-    u, v, dreal, dimag, dwgt = data 	# U and V must be in **lambda** units >>
+
+
+
+
+
+
+
+    #Use Sean's bin location choice
+    b = np.linspace(binmin, binmax, num=nbins-1) 
+    dbins = rin, b
+    global bins
+    bins = dbins 
+    cb = makebins(rin,b)
+    nbins = np.shape(cb)[0]
+
+    print 'TMP res'
+
+ #Find mean values at bin locations from synthesized image
+    global wg
+    wg = synthguess(a, b, nbins, synthimg)
+    w0=wg
+    w0[w0<0]=0 #Don't save negative results
+    
+
+
+
+    #Save initial guesses to file
+    filename = 'init_'+basename+'_'+str(nbins) #this naming scheme could be improved
+    np.savez(filename, cb=cb, wg=wg, proj = proj, dbins = dbins)
+
+    #Compute resolution for use in initializing bins   
+    cms=3e8 #c in m/s
+    arcsec = 180./np.pi*3600.
+    global res
+    res = cms/freq/np.amax(np.sqrt(u**2 + v**2))*arcsec
+
+        
+
+    #Find mean values at bin locations from synthesized image
+
+    
+
+
+    
+
+   
