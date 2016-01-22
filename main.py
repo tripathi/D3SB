@@ -161,20 +161,23 @@ def main():
     ############
     # 1.Inputs #
     ############
-    basename = 'gp_nogap' #Name common to all files in this run
+    basename = 'fullA' #Name common to all files in this run
     freq = 340e9 #Hz
     dpc = 140. #Distance to source in pc
      
     #Parameters
-    nbins = 30
-    binmin = .01 #Where to start bins in arcsec, but will be cutoff at rin
+    nbins = 15
+    binmin = .1 #Where to start bins in arcsec, but will be cutoff at rin
     binmax = 1.1 #Outer bin edge in arcsec
     rin = 0.01/dpc #Inner cutoff in arcsec
-    
-    inclguess = 0. #Inclination in degrees
-    PAguess = 0. #position angle in degrees
-    offxguess = offyguess = 0. #offsets in arcsec
+       
+    inclguess = 49.7 #Inclination in degrees
+    PAguess = 70.1 #position angle in degrees
+    offxguess = -.3  #offsets in arcsec
+    offyguess = -.2 #offsets in arcsec
 
+    plotting = 1
+    
     #Emcee setup parameters
     nsteps = 2000 #Number of steps to take
     nthreads = 12 #Number of threads
@@ -184,13 +187,13 @@ def main():
     ###################
     # 2. Read in data #
     ###################
-    hiresvis = 'DATA/' + basename + '.npz' #Model visibilities
+    hiresvis = 'DATA/' + basename + '.vis.npz' #Model visibilities
     synthimg = 'DATA/' + basename + '.image.fits' #Synthesized image, for guesses     
 
     #Read in visibilities
     #To avoid having problems and two different functions between pre-inference and real run,
     #dvis is an argument, not a global. >>
-    data = readinVis('DATA/'+hiresvis) #Used for CARMA visibilities.
+    data = readinVis(hiresvis) #Used for CARMA visibilities.
     global u, v
     u, v, dvis, dwgt = data
 
@@ -200,13 +203,42 @@ def main():
     ##########################################
     # 3. Set bins & find mean SB in each bin #
     ##########################################
-    # Choose radial bin locations (b, rin)
+
+    # Choose radial bin locations (b, rin)   
+
+    # Use Sean's bin location choice >>>
+    b = np.linspace(binmin, binmax, num=nbins)
+
     
-    #Get mean and stddev in each bin
-    sbbin, sigmabin = sbmeanbin(rin, b, rsb, sb)
-    cb = makebins(rin, b)
+    #Find mean & std.dev. values at bin locations from synthesized image
+    sbbin, sigmabin = f.sbmeanbin(rin, b, rsb, sb)
+    cb = f.makebins(rin, b)
 
+    # Need to deal with bins without data that yield NaN >>
+    
+#    w0[w0<0]=0 #Don't save negative results >>
 
+    #Print results
+    for i in range(len(b)):
+        print cb[i], sbbin[i], sigmabin[i]
+        
+    #Plot results
+    if plotting:
+        fig1 = plt.figure()
+        plt.plot(rsb, sb, '.y')
+        plt.loglog(cb, sbbin, 'or')
+        plt.errorbar(cb, sbbin, yerr = sigmabin, fmt = 'o')
+#        plt.show()
+        plt.savefig(basename+'bins.png')
+                
+        fig2 = plt.figure()
+        plt.plot(cb, np.abs(sigmabin/sbbin), '-.b')
+        plt.plot(cb, np.ones_like(cb), ':k')
+#        plt.show()
+        plt.savefig(basename+'sbcombare.png')
+        
+        
+    
     #Globals needed by discretemodel
     global rbin, bsize
     rbin = np.concatenate([np.array([rin]), b]) #~~~
@@ -217,30 +249,11 @@ def main():
 
 
 
-
-
-    #Use Sean's bin location choice
-    b = np.linspace(binmin, binmax, num=nbins-1) 
-    dbins = rin, b
-    global bins
-    bins = dbins 
-    cb = makebins(rin,b)
-    nbins = np.shape(cb)[0]
-
-    print 'TMP res'
-
- #Find mean values at bin locations from synthesized image
-    global wg
-    wg = synthguess(a, b, nbins, synthimg)
-    w0=wg
-    w0[w0<0]=0 #Don't save negative results
-    
-
-
-
     #Save initial guesses to file
     filename = 'init_'+basename+'_'+str(nbins) #this naming scheme could be improved
-    np.savez(filename, cb=cb, wg=wg, proj = proj, dbins = dbins)
+
+    proj = PAguess, inclguess, offxguess, offyguess
+    np.savez(filename, cb=cb, sbbin=sbbin, proj = proj, rin=rin, b=b)
 
     #Compute resolution for use in initializing bins   
     cms=3e8 #c in m/s
@@ -248,9 +261,9 @@ def main():
     global res
     res = cms/freq/np.amax(np.sqrt(u**2 + v**2))*arcsec
 
-        
 
-    #Find mean values at bin locations from synthesized image
+    pdb.set_trace()
+
 
     
 
@@ -258,3 +271,5 @@ def main():
     
 
    
+if __name__ == "__main__":
+    main()
