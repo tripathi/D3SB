@@ -165,18 +165,15 @@ def main():
     freq = 340e9 #Hz
     dpc = 140. #Distance to source in pc
      
-    #Parameters
-    nbins = 15
-    binmin = .1 #Where to start bins in arcsec, but will be cutoff at rin
-    binmax = 1.1 #Outer bin edge in arcsec
-    rin = 0.01/dpc #Inner cutoff in arcsec
-       
+    #Parameters    
     inclguess = 49.7 #Inclination in degrees
     PAguess = 70.1 #position angle in degrees
     offxguess = -.3  #offsets in arcsec
     offyguess = -.2 #offsets in arcsec
 
     plotting = 1
+
+    rin = 0.1/dpc
     
     #Emcee setup parameters
     nsteps = 2000 #Number of steps to take
@@ -203,22 +200,47 @@ def main():
     ##########################################
     # 3. Set bins & find mean SB in each bin #
     ##########################################
+    
+    #Compute resolution for use in initializing bins   
+    cms=3e8 #c in m/s
+    arcsec = 180./np.pi*3600.
+    global res
+    res = 1./np.amax(np.sqrt(u**2 + v**2))*arcsec #is this correct, or do I needcms/freq/ >>
 
+    rin = 0.2*res
+
+    #Bin parameters
+    nbins = 15
+    binmin = .1 #Where to start bins in arcsec, but will be cutoff at rin
+    binmax = 1.1 #Outer bin edge in arcsec
+    rin = 0.01/dpc #Inner cutoff in arcsec
+    
     # Choose radial bin locations (b, rin)   
 
     # Use Sean's bin location choice >>>
     b = np.linspace(binmin, binmax, num=nbins)
 
+# - ASSIGN BINS
+## nbbins = 24
+## b1 = 0.015 + 0.037*np.arange(10)
+## b2 = np.logspace(np.log10(b1[-1]), np.log10(1.1), num=15)
+## bb = np.concatenate([b1[:-1], b2])
+## ba = np.roll(bb, 1)
+## ba[0] = 0.1/140.
+## br = 0.5*(ba+bb)
+## bins = 0.1/140., bb
+
+    
     
     #Find mean & std.dev. values at bin locations from synthesized image
     sbbin, sigmabin = f.sbmeanbin(rin, b, rsb, sb)
     cb = f.makebins(rin, b)
 
-    # Need to deal with bins without data that yield NaN >>
-    
+    # Need to deal with bins without data that yield NaN >>    
 #    w0[w0<0]=0 #Don't save negative results >>
 
     #Print results
+    print 'Bin, SB Mean, SB Stddev'
     for i in range(len(b)):
         print cb[i], sbbin[i], sigmabin[i]
         
@@ -228,6 +250,7 @@ def main():
         plt.plot(rsb, sb, '.y')
         plt.loglog(cb, sbbin, 'or')
         plt.errorbar(cb, sbbin, yerr = sigmabin, fmt = 'o')
+        plt.xlim(binmin/10, binmax*2.)
 #        plt.show()
         plt.savefig(basename+'bins.png')
                 
@@ -255,11 +278,7 @@ def main():
     proj = PAguess, inclguess, offxguess, offyguess
     np.savez(filename, cb=cb, sbbin=sbbin, proj = proj, rin=rin, b=b)
 
-    #Compute resolution for use in initializing bins   
-    cms=3e8 #c in m/s
-    arcsec = 180./np.pi*3600.
-    global res
-    res = cms/freq/np.amax(np.sqrt(u**2 + v**2))*arcsec
+
 
 
     pdb.set_trace()
