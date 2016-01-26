@@ -18,7 +18,7 @@ def makebins(rin, b):
     cb = 0.5*(a+b)
     return cb
     
-def sbdata(filename, PA=0., incl=0., offx=0., offy=0.):
+def sbdata(filename, PA=0., incl=0., offx=0., offy=0., plotting = 0):
     """
     Read in a synthesized image and return 1D SB profile
     :param PA: position angle in degrees
@@ -33,6 +33,13 @@ def sbdata(filename, PA=0., incl=0., offx=0., offy=0.):
     DEC = hdr['CDELT2']*(np.arange(hdr['NAXIS2'])-(hdr['CRPIX2']-1))
     omega_beam = np.pi*(3600.**2)*hdr['BMAJ']*hdr['BMIN']/(4.*np.log(2.))
 
+    #Plot original image
+    if plotting:
+        plt.subplot(1,2,1)
+        plt.imshow(dimage, cmap='gray', origin='lower', interpolation='nearest',
+               vmin=-5e-5, vmax=.6)
+        plt.title('Original')
+    
     #Construct the grid for the image
     PAr = np.radians(PA)
     inclr = np.radians(incl)
@@ -48,6 +55,14 @@ def sbdata(filename, PA=0., incl=0., offx=0., offy=0.):
     #Useful for what >>
     beaminfo = omega_beam, hdr['BMAJ']*3600., hdr['BMIN']*3600.
 
+    #Plot deprojected image
+    if plotting:
+        plt.subplot(1,2,2)
+        plt.imshow(dimage, cmap='gray', origin='lower', interpolation='nearest',
+               vmin=-5e-5, vmax=.6)
+        plt.title('Deprojected image')
+        plt.show(block=False)
+    
     return imrad, dimage, beaminfo
 
 def sbmeanbin(rin, b, rpim, SBpim):

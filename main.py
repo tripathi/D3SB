@@ -20,7 +20,7 @@ def readinVis(datafile):
     return data
 
 
-def runemcee(p0, nsteps, savename, MPI=0):
+def runemcee(p0, nsteps, savename, dv, dw, MPI=0):
     """
     Run emcee
     :param p0: Initial walker positions
@@ -42,9 +42,9 @@ def runemcee(p0, nsteps, savename, MPI=0):
 
     #Initialize sampler
     if MPI:
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, pool=pool)
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[dv, dw], pool=pool)
     else:
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, threads=nthreads)
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, threads=nthreads, args=[dv, dw])
 
     #Write log file
     f = open('emcee.log', 'a')
@@ -172,8 +172,6 @@ def main():
     offyguess = -.2 #offsets in arcsec
 
     plotting = 1
-
-    rin = 0.1/dpc
     
     #Emcee setup parameters
     nsteps = 2000 #Number of steps to take
@@ -195,6 +193,7 @@ def main():
     u, v, dvis, dwgt = data
 
     #Read in surface brightness 
+    plotme = 1
     rsb, sb, beaminfo = f.sbdata(synthimg, PAguess, inclguess, offxguess, offyguess)
 
     ##########################################
@@ -207,30 +206,20 @@ def main():
     global res
     res = 1./np.amax(np.sqrt(u**2 + v**2))*arcsec #is this correct, or do I needcms/freq/ >>
 
-    rin = 0.2*res
-
     #Bin parameters
-    nbins = 15
-    binmin = .1 #Where to start bins in arcsec, but will be cutoff at rin
-    binmax = 1.1 #Outer bin edge in arcsec
     rin = 0.01/dpc #Inner cutoff in arcsec
+    binmin = 0.2*res #Where to start bins in arcsec, but will be cutoff at ri
+    binmax = 1.1 #Outer bin edge in arcsec
+    linstep = 0.5*res
+    lincutoff = 0.4
+    nlogbins = 12
+
     
     # Choose radial bin locations (b, rin)   
+    blin = np.arange(binmin, lincutoff, linstep)
+    blog = np.logspace(np.log10(lincutoff), np.log10(binmax), num = nlogbins)
+    b = np.concatenate([blin, blog])
 
-    # Use Sean's bin location choice >>>
-    b = np.linspace(binmin, binmax, num=nbins)
-
-# - ASSIGN BINS
-## nbbins = 24
-## b1 = 0.015 + 0.037*np.arange(10)
-## b2 = np.logspace(np.log10(b1[-1]), np.log10(1.1), num=15)
-## bb = np.concatenate([b1[:-1], b2])
-## ba = np.roll(bb, 1)
-## ba[0] = 0.1/140.
-## br = 0.5*(ba+bb)
-## bins = 0.1/140., bb
-
-    
     
     #Find mean & std.dev. values at bin locations from synthesized image
     sbbin, sigmabin = f.sbmeanbin(rin, b, rsb, sb)
@@ -244,50 +233,52 @@ def main():
     for i in range(len(b)):
         print cb[i], sbbin[i], sigmabin[i]
         
-    #Plot results
+    #Plot bin choices (Add RMS) >>
     if plotting:
         fig1 = plt.figure()
-        plt.plot(rsb, sb, '.y')
-        plt.loglog(cb, sbbin, 'or')
-        plt.errorbar(cb, sbbin, yerr = sigmabin, fmt = 'o')
-        plt.xlim(binmin/10, binmax*2.)
-#        plt.show()
-        plt.savefig(basename+'bins.png')
-                
-        fig2 = plt.figure()
-        plt.plot(cb, np.abs(sigmabin/sbbin), '-.b')
-        plt.plot(cb, np.ones_like(cb), ':k')
-#        plt.show()
-        plt.savefig(basename+'sbcombare.png')
-        
-        
+        ax1 = plt.subplot(2,1,1)
+        ax1.plot(rsb, sb, '.y')
+        ax1.loglog(cb, sbbin, 'or')
+        ax1.errorbar(cb, sbbin, yerr = sigmabin, fmt = 'o')
+        ax1.set_xlim(binmin/10, binmax*2.)
+
+        ax2 = plt.subplot(2,1,2, sharex = ax1)
+        ax2.plot(cb, np.abs(sigmabin/sbbin), '-.b')
+        ax2.plot(cb, np.ones_like(cb), ':k')
+        fig1.subplots_adjust(hspace = 0)
+        plt.setp([a.get_xticklabels() for a in fig1.axes[:-1]], visible=False)
+        plt.show(block=False)
+        fig1.savefig(basename+'sbcombare.png')
     
     #Globals needed by discretemodel
     global rbin, bsize
     rbin = np.concatenate([np.array([rin]), b]) #~~~
     bsize = b.size
+    nbins = bsize
+
+    print "Press c to continue \n"
+    pdb.set_trace()
+
+    #######################
+    # 4. Initialize emcee #
+    #######################
     
-
-
-
-
-
     #Save initial guesses to file
     filename = 'init_'+basename+'_'+str(nbins) #this naming scheme could be improved
 
     proj = PAguess, inclguess, offxguess, offyguess
-    np.savez(filename, cb=cb, sbbin=sbbin, proj = proj, rin=rin, b=b)
+    np.savez(filename, rin=rin, b=b, cb = cb, sbbin=sbbin, proj = proj) #cb is redundant >>
 
+    #Set filename for emcee output.  Non-MPI version asks for user kbd input
+    if not MPIflag:
+        notes = raw_input('Notes? Only give a short phrase to append to filenames\n')
+    else:
+        notes=''
+    savename = basename+'_'+str(nbins)+'_'+notes
 
-
-
-    pdb.set_trace()
-
-
-    
-
-
-    
+    #Run emcee
+    p0 = initwalkers(cb, pinit, alleq=0, res=res)
+    chain0 = runemcee(p0, nsteps, savename, dvis, dwgt, MPI=0)
 
    
 if __name__ == "__main__":
