@@ -4,11 +4,16 @@
 .. moduleauthor:: Anjali Tripathi
 .. moduleauthor:: Sean Andrews
 """
+import time
+from datetime import datetime
 import numpy as np
 import scipy.special as sc
 import pdb as pdb
 import matplotlib.pyplot as plt
 import d3sbfxns as f
+from deprojectVis import deproject_vis
+import emcee
+from emcee.utils import MPIPool
 
 def readinVis(datafile):
     """
@@ -20,7 +25,7 @@ def readinVis(datafile):
     return data
 
 
-def runemcee(p0, nsteps, savename, dv, dw, MPI=0):
+def runemcee(p0, nsteps, nthreads, savename, dv, dw, MPI=0):
     """
     Run emcee
     :param p0: Initial walker positions
@@ -30,8 +35,8 @@ def runemcee(p0, nsteps, savename, dv, dw, MPI=0):
     """
     #Number of parameters and walkers, set by p0
     ndim = np.shape(p0)[1]
-    nwalkers = np*4
-
+    nwalkers = ndim*4
+    pdb.set_trace()
     #Initialize the MPI-based pool used for parallelization.
     if MPI:
         pool = MPIPool()
@@ -40,17 +45,23 @@ def runemcee(p0, nsteps, savename, dv, dw, MPI=0):
                 pool.wait()
                 sys.exit(0)
 
+    print "I'm here"
+                
     #Initialize sampler
     if MPI:
         sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[dv, dw], pool=pool)
     else:
         sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, threads=nthreads, args=[dv, dw])
 
+    print "I'm here now"
+        
     #Write log file
     f = open('emcee.log', 'a')
     FORMAT = '%m-%d-%Y-%H%M'
     f.write(savename+', '+str(ndim)+', '+str(nsteps)+', '+datetime.now().strftime(FORMAT))
 
+    print "I'm here now 2"
+    
     #Run emcee, and time it
     tic = time.time()
     sampler.run_mcmc(p0, nsteps)
@@ -92,6 +103,8 @@ def lnprob(theta, dvis, dwgt):
     offy = theta[3]
     w = theta[4:]
 
+    print theta.size
+    
     #PRIORS    
     #Enforce positive surface brightnesses
     if (w<0).any():
@@ -100,12 +113,17 @@ def lnprob(theta, dvis, dwgt):
     dw = np.diff(w)
     prior = np.sum(dw[1:]*dw[:-1] <0, dtype='float') * 2.*len(dwgt) / len(w)
 
+    print "I'm here now 3"
+    
     #LIKELIHOOD
     #Compute a chi2 value (proportional to log-likelihood)
     mvis = discretemodel(theta)
     ## mvis = discretemodel([incl, PA, np.array([offx, offy]), p]) #What Sean does, but seems unnec. complicated
     ## chi2 = np.sum(((dvis.real-mvis.real)/dwgt)**2 + 
     ##               ((dvis.imag-mvis.imag)/dwgt)**2) #Currently using dwgt both times >>
+
+    print "I'm here now 4"
+    
     chi2 = np.sum( dwgt*(dvis.real-mvis.real)**2 + dwgt*(dvis.imag-mvis.imag)**2 )                  
 
     # return a log-posterior value
@@ -129,7 +147,8 @@ def discretemodel(theta):
     # convert angles to radians
     inclr = np.radians(incl)
     PAr = 0.5*np.pi-np.radians(PA)
-    offr = offset * np.pi / (180.*3600.)
+    offrx = offx / arcsec
+    offry = offy / arcsec
 
     # coordinate change to deal with projection, rotation, and shifts
     uprime = (u*np.cos(PAr) + v*np.sin(PAr)) 
@@ -147,12 +166,12 @@ def discretemodel(theta):
     vrealnoshift = np.dot(2.*np.pi*rbin**2*intensity, jinc)
     
     # impart a phase center shift
-    shift = np.exp(-2.*np.pi*1.0j*((u*-offr[0]) + (v*-offr[1])))
+    shift = np.exp(-2.*np.pi*1.0j*((u*-offrx) + (v*-offry)))
     vreal = vrealnoshift*shift
     vimag = np.zeros_like(vreal)
 
     vis = vreal + 1.0j*vimag          
-    return model_vis
+    return vis
 
 def main():
     """
@@ -171,7 +190,7 @@ def main():
     offxguess = -.3  #offsets in arcsec
     offyguess = -.2 #offsets in arcsec
 
-    plotting = 1
+    plotting = 0
     
     #Emcee setup parameters
     nsteps = 2000 #Number of steps to take
@@ -202,6 +221,7 @@ def main():
     
     #Compute resolution for use in initializing bins   
     cms=3e8 #c in m/s
+    global arcsec
     arcsec = 180./np.pi*3600.
     global res
     res = 1./np.amax(np.sqrt(u**2 + v**2))*arcsec #is this correct, or do I needcms/freq/ >>
@@ -277,9 +297,27 @@ def main():
     savename = basename+'_'+str(nbins)+'_'+notes
 
     #Run emcee
-    p0 = initwalkers(cb, pinit, alleq=0, res=res)
-    chain0 = runemcee(p0, nsteps, savename, dvis, dwgt, MPI=0)
+    p0 = f.initwalkers(cb, sbbin, alleq=0, res=res)
+    newbins = np.arange(1., np.amax(np.sqrt(u**2 + v**2)), 50.)
+    dprj_vis = deproject_vis([u, v, dvis, dwgt], newbins, inclguess, PAguess, offxguess, offyguess)
+    dpjrho, dpjvis, dpjsig = dprj_vis
+    chain0 = runemcee(p0, 20000, nthreads, savename, dpjvis, 1./dpjsig**2., MPI=0)
 
-   
+    #Flatten chain
+    cstart = 0
+    ndim = nbins #+ 1 #CHANGE accordingly
+    samplesw0 = initchain[:, cstart:, :].reshape((-1,ndim))
+    vcentral = np.percentile(samplesw0, 50, axis=0)
+    print vcentral
+
+    if plotting:
+        ax1.plot(rsb, sb, '.y')
+        ax1.loglog(cb, sbbin, 'or')
+        ax1.errorbar(cb, sbbin, yerr = sigmabin, fmt = 'o')
+        ax1.plot(cb, vcentral,'.')
+        plt.show()
+        pdb.set_trace()
+
+           
 if __name__ == "__main__":
     main()
