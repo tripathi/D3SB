@@ -25,7 +25,7 @@ def readinVis(datafile):
     return data
 
 
-def runemcee(p0, nsteps, nthreads, savename, dv, dw, MPI=0):
+def runemcee(p0, nsteps, nthreads, savename, dv, dw, fitproj=1, MPI=0):
     """
     Run emcee
     :param p0: Initial walker positions
@@ -36,7 +36,7 @@ def runemcee(p0, nsteps, nthreads, savename, dv, dw, MPI=0):
     #Number of parameters and walkers, set by p0
     ndim = np.shape(p0)[1]
     nwalkers = ndim*4
-    pdb.set_trace()
+
     #Initialize the MPI-based pool used for parallelization.
     if MPI:
         pool = MPIPool()
@@ -44,24 +44,18 @@ def runemcee(p0, nsteps, nthreads, savename, dv, dw, MPI=0):
                 # Wait for instructions from the master process.
                 pool.wait()
                 sys.exit(0)
-
-    print "I'm here"
-                
+              
     #Initialize sampler
     if MPI:
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[dv, dw], pool=pool)
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[dv, dw, fitproj], pool=pool)
     else:
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, threads=nthreads, args=[dv, dw])
-
-    print "I'm here now"
-        
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, threads=nthreads, args=[dv, dw, fitproj])
+       
     #Write log file
     f = open('emcee.log', 'a')
     FORMAT = '%m-%d-%Y-%H%M'
     f.write(savename+', '+str(ndim)+', '+str(nsteps)+', '+datetime.now().strftime(FORMAT))
 
-    print "I'm here now 2"
-    
     #Run emcee, and time it
     tic = time.time()
     sampler.run_mcmc(p0, nsteps)
@@ -75,7 +69,7 @@ def runemcee(p0, nsteps, nthreads, savename, dv, dw, MPI=0):
 
 
     #Save the results in a binary file
-    np.save('mc_'+savename,sampler.chain)
+    np.save('mc'+str(fitproj)+'_'++savename,sampler.chain)
 
     if MPI:
         #Close the processes.
@@ -89,22 +83,23 @@ def runemcee(p0, nsteps, nthreads, savename, dv, dw, MPI=0):
 
     return sampler.chain
 
-def lnprob(theta, dvis, dwgt):
+def lnprob(theta, dvis, dwgt, fitproj=1):
     """
     Compute log posterior for current parameter values
     :param theta: Inclination params and bin coefficients (Inclination params must be put first, before the bins)
     :param dvis: Complex visibilities
     :param dwgt: Visibility weights, currently only real
     """  
-    # unpack the parameters
-    incl = theta[0]
-    PA   = theta[1]
-    offx = theta[2]
-    offy = theta[3]
-    w = theta[4:]
-
-    print theta.size
-    
+    # unpack the parameters, if projection parameters included
+    if fitproj:
+        incl = theta[0]
+        PA   = theta[1]
+        offx = theta[2]
+        offy = theta[3]
+        w = theta[4:]
+    else:
+        w = theta
+ 
     #PRIORS    
     #Enforce positive surface brightnesses
     if (w<0).any():
@@ -113,63 +108,67 @@ def lnprob(theta, dvis, dwgt):
     dw = np.diff(w)
     prior = np.sum(dw[1:]*dw[:-1] <0, dtype='float') * 2.*len(dwgt) / len(w)
 
-    print "I'm here now 3"
-    
     #LIKELIHOOD
     #Compute a chi2 value (proportional to log-likelihood)
-    mvis = discretemodel(theta)
+    mvis = discretemodel(theta, fitproj)
+
     ## mvis = discretemodel([incl, PA, np.array([offx, offy]), p]) #What Sean does, but seems unnec. complicated
     ## chi2 = np.sum(((dvis.real-mvis.real)/dwgt)**2 + 
     ##               ((dvis.imag-mvis.imag)/dwgt)**2) #Currently using dwgt both times >>
 
-    print "I'm here now 4"
-    
     chi2 = np.sum( dwgt*(dvis.real-mvis.real)**2 + dwgt*(dvis.imag-mvis.imag)**2 )                  
 
     # return a log-posterior value
     return -0.5*(chi2 + prior)
 
-def discretemodel(theta):
+def discretemodel(theta, fitproj = 1):
     """
     Return complex visibilities corresponding to binned surface brightness
     :param theta: Inclination params and bin coefficients (Inclination params must be put first, before the bins)
-    Expects data and bins to be saved as global variables elsewhere in this same file
-    Expects rbin = np.concatenate([np.array([rin]), b]), bsize, u, & v
+    Expects rbin = np.concatenate([np.array([rin]), b]), bsize, u, & v to be saved as globals
+    If running on binned, deprojected visibilities, GLOBAL rho and no inclination parameters in theta
     """
 #    incl, PA, offset, w = theta
-    # unpack the parameters
-    incl = theta[0]
-    PA   = theta[1]
-    offx = theta[2]
-    offy = theta[3]
-    w = theta[4:]
 
-    # convert angles to radians
-    inclr = np.radians(incl)
-    PAr = 0.5*np.pi-np.radians(PA)
-    offrx = offx / arcsec
-    offry = offy / arcsec
 
-    # coordinate change to deal with projection, rotation, and shifts
-    uprime = (u*np.cos(PAr) + v*np.sin(PAr)) 
-    vprime = (-u*np.sin(PAr) + v*np.cos(PAr)) * np.cos(inclr)
-    rho = np.sqrt(uprime**2 + vprime**2) * np.pi / (180.*3600.)
+    if fitproj:
+        #unpack the parameters, if projection parameters included
+        incl = theta[0]
+        PA   = theta[1]
+        offx = theta[2]
+        offy = theta[3]
+        w = theta[4:]
+
+        # convert angles to radians
+        inclr = np.radians(incl)
+        PAr = 0.5*np.pi-np.radians(PA)
+        offrx = offx / arcsec
+        offry = offy / arcsec
+
+        # coordinate change to deal with projection, rotation, and shifts
+        uprime = (u*np.cos(PAr) + v*np.sin(PAr)) 
+        vprime = (-u*np.sin(PAr) + v*np.cos(PAr)) * np.cos(inclr)
+        rho = np.sqrt(uprime**2 + vprime**2) * np.pi / (180.*3600.)
+
+        # phase center shift
+        shift = np.exp(-2.*np.pi*1.0j*((u*-offrx) + (v*-offry)))
+                
+    else:
+        w = theta        
+        shift = 1 #no phase center shift needed
+        rho = dpjrho
 
     # re-orient arrays
     wbin = np.append(np.concatenate([np.array([0.0]), w]), 0.)
     ww = wbin-np.roll(wbin, -1)
     intensity = np.delete(ww, bsize+1)
-
+    
     # compute the visibilities
     jarg = np.outer(2.*np.pi*rbin, rho)
     jinc = sc.j1(jarg)/jarg
     vrealnoshift = np.dot(2.*np.pi*rbin**2*intensity, jinc)
-    
-    # impart a phase center shift
-    shift = np.exp(-2.*np.pi*1.0j*((u*-offrx) + (v*-offry)))
-    vreal = vrealnoshift*shift
+    vreal = vrealnoshift*shift # impart phase center shift
     vimag = np.zeros_like(vreal)
-
     vis = vreal + 1.0j*vimag          
     return vis
 
@@ -194,7 +193,7 @@ def main():
     
     #Emcee setup parameters
     nsteps = 2000 #Number of steps to take
-    nthreads = 12 #Number of threads
+    nthreads = 1 #Number of threads
     MPIflag = 0 #Use MPI (1) or not (0)
     doingpreinference = 1
 
@@ -300,13 +299,21 @@ def main():
     p0 = f.initwalkers(cb, sbbin, alleq=0, res=res)
     newbins = np.arange(1., np.amax(np.sqrt(u**2 + v**2)), 50.)
     dprj_vis = deproject_vis([u, v, dvis, dwgt], newbins, inclguess, PAguess, offxguess, offyguess)
+    global dpjrho
     dpjrho, dpjvis, dpjsig = dprj_vis
-    chain0 = runemcee(p0, 20000, nthreads, savename, dpjvis, 1./dpjsig**2., MPI=0)
 
+    print 'Pre runemcee'
+    pdb.set_trace()
+
+    chain0 = runemcee(p0, 20000, nthreads, savename, dpjvis, 1./dpjsig.real**2., fitproj = 0, MPI=0)
+
+    #p0 = f.initwalkers(cb, np.insert(sbbin, 0, [inclguess, PAguess, offxguess, offyguess]), alleq=0, res=res)
+
+    
     #Flatten chain
     cstart = 0
     ndim = nbins #+ 1 #CHANGE accordingly
-    samplesw0 = initchain[:, cstart:, :].reshape((-1,ndim))
+    samplesw0 = chain0[:, cstart:, :].reshape((-1,ndim))
     vcentral = np.percentile(samplesw0, 50, axis=0)
     print vcentral
 
