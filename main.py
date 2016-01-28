@@ -325,14 +325,7 @@ def main():
     print 'Pre runemcee, one more chance to pause'
     pdb.set_trace()
 
-    ## #Run emcee on deprojected visibilites to determine new bin weights ONLY
-    ## print 'Hola'
-    ## a1 = lnprob(sbbin,dpjvis, 1./dpjsig.real**2, fitproj=0)
-    ## chain0 = np.load('mc_fullA_22_.npy')
-    ## testw = chain0[1,10000, :]
-    ## a2 = lnprob(testw,dpjvis, 1./dpjsig.real**2, fitproj=0)
-    ## pdb.set_trace()
-
+    #Run emcee on deprojected visibilites to determine new bin weights ONLY
     chain0 = runemcee(p0, 20000, nthreads, savename, dpjvis, 1./dpjsig.real**2., fitproj = 0, MPI=0)
 
     
