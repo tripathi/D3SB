@@ -69,7 +69,7 @@ def runemcee(p0, nsteps, nthreads, savename, dv, dw, fitproj=1, MPI=0):
 
 
     #Save the results in a binary file
-    np.save('mc'+str(fitproj)+'_'++savename,sampler.chain)
+    np.save('mc'+str(fitproj)+'_'+savename,sampler.chain)
 
     if MPI:
         #Close the processes.
@@ -116,7 +116,8 @@ def lnprob(theta, dvis, dwgt, fitproj=1):
     ## chi2 = np.sum(((dvis.real-mvis.real)/dwgt)**2 + 
     ##               ((dvis.imag-mvis.imag)/dwgt)**2) #Currently using dwgt both times >>
 
-    chi2 = np.sum( dwgt*(dvis.real-mvis.real)**2 + dwgt*(dvis.imag-mvis.imag)**2 )                  
+    chi2 = np.sum( dwgt*(dvis.real-mvis.real)**2 + dwgt*(dvis.imag-mvis.imag)**2 )
+
 
     # return a log-posterior value
     return -0.5*(chi2 + prior)
@@ -164,7 +165,7 @@ def discretemodel(theta, fitproj = 1):
     intensity = np.delete(ww, bsize+1)
     
     # compute the visibilities
-    jarg = np.outer(2.*np.pi*rbin, rho)
+    jarg = np.outer(2.*np.pi*rbin, rho/arcsec)
     jinc = sc.j1(jarg)/jarg
     vrealnoshift = np.dot(2.*np.pi*rbin**2*intensity, jinc)
     vreal = vrealnoshift*shift # impart phase center shift
@@ -189,7 +190,7 @@ def main():
     offxguess = -.3  #offsets in arcsec
     offyguess = -.2 #offsets in arcsec
 
-    plotting = 0
+    plotting = 1
     
     #Emcee setup parameters
     nsteps = 2000 #Number of steps to take
@@ -211,8 +212,7 @@ def main():
     u, v, dvis, dwgt = data
 
     #Read in surface brightness 
-    plotme = 1
-    rsb, sb, beaminfo = f.sbdata(synthimg, PAguess, inclguess, offxguess, offyguess)
+    rsb, sb, beaminfo = f.sbdata(synthimg, PAguess, inclguess, offxguess, offyguess) #Add plotting argument, if plot desired
 
     ##########################################
     # 3. Set bins & find mean SB in each bin #
@@ -295,9 +295,8 @@ def main():
         notes=''
     savename = basename+'_'+str(nbins)+'_'+notes
 
-    #Run emcee
+    #Initialize walkers
     p0 = f.initwalkers(cb, sbbin, alleq=0, res=res)
-
     if plotting:
         fig2 = plt.figure()
         for iw in np.arange(nbins*4):
@@ -311,12 +310,30 @@ def main():
     global dpjrho
     dpjrho, dpjvis, dpjsig = dprj_vis
 
-    print 'Pre runemcee'
+    if plotting:
+        fig3 = plt.figure()
+        plt.plot(np.sqrt(u**2 + v**2), dvis.real, '.k', alpha = 0.1)
+        plt.plot(dpjrho, dpjvis.real, 'o')
+        plt.show(block=False)
+        fig3.savefig(basename+'dprjvis.png')
+        pdb.set_trace()
+
+    #######################################
+    # 5. Run emcee on binned visibilities #
+    #######################################
+        
+    print 'Pre runemcee, one more chance to pause'
     pdb.set_trace()
 
-    chain0 = runemcee(p0, 20000, nthreads, savename, dpjvis, 1./dpjsig.real**2., fitproj = 0, MPI=0)
+    ## #Run emcee on deprojected visibilites to determine new bin weights ONLY
+    ## print 'Hola'
+    ## a1 = lnprob(sbbin,dpjvis, 1./dpjsig.real**2, fitproj=0)
+    ## chain0 = np.load('mc_fullA_22_.npy')
+    ## testw = chain0[1,10000, :]
+    ## a2 = lnprob(testw,dpjvis, 1./dpjsig.real**2, fitproj=0)
+    ## pdb.set_trace()
 
-    #p0 = f.initwalkers(cb, np.insert(sbbin, 0, [inclguess, PAguess, offxguess, offyguess]), alleq=0, res=res)
+    chain0 = runemcee(p0, 20000, nthreads, savename, dpjvis, 1./dpjsig.real**2., fitproj = 0, MPI=0)
 
     
     #Flatten chain
@@ -327,13 +344,20 @@ def main():
     print vcentral
 
     if plotting:
-        ax1.plot(rsb, sb, '.y')
-        ax1.loglog(cb, sbbin, 'or')
-        ax1.errorbar(cb, sbbin, yerr = sigmabin, fmt = 'o')
-        ax1.plot(cb, vcentral,'.')
+        fig5 = plt.figure()
+        plt.plot(rsb, sb, '.y')
+        plt.loglog(cb, sbbin, 'or')
+        plt.errorbar(cb, sbbin, yerr = sigmabin, fmt = 'o')
+        plt.plot(cb, vcentral,'.')
         plt.show()
-        pdb.set_trace()
 
-           
+    pdb.set_trace()
+
+    #####################################
+    # 5. Run emcee on full visibilities #
+    #####################################
+        
+    #p0 = f.initwalkers(cb, np.insert(sbbin, 0, [inclguess, PAguess, offxguess, offyguess]), alleq=0, res=res)
+
 if __name__ == "__main__":
     main()
