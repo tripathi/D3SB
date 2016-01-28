@@ -297,6 +297,15 @@ def main():
 
     #Run emcee
     p0 = f.initwalkers(cb, sbbin, alleq=0, res=res)
+
+    if plotting:
+        fig2 = plt.figure()
+        for iw in np.arange(nbins*4):
+            plt.plot(cb,p0[iw,:], '-co', alpha = 0.1) #Plot starting ball
+        plt.show(block=False)
+        pdb.set_trace()
+
+    #Bin the visibilities for use in first pass
     newbins = np.arange(1., np.amax(np.sqrt(u**2 + v**2)), 50.)
     dprj_vis = deproject_vis([u, v, dvis, dwgt], newbins, inclguess, PAguess, offxguess, offyguess)
     global dpjrho
