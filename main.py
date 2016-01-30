@@ -101,6 +101,12 @@ def lnprob(theta, dvis, dwgt, fitproj=1):
         w = theta
  
     #PRIORS    
+    #Confine inclination to first quadrant
+    if (incl >90.) or (incl <0):
+        return -np.inf
+    #Confine PA
+    if (PA >180.) or (PA <0):
+        return -np.inf
     #Enforce positive surface brightnesses
     if (w<0).any():
         return -np.inf
