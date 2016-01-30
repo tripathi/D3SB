@@ -97,16 +97,18 @@ def lnprob(theta, dvis, dwgt, fitproj=1):
         offx = theta[2]
         offy = theta[3]
         w = theta[4:]
+
+        #PRIORS for projection
+        #Confine inclination to first quadrant
+        if (incl >90.) or (incl <0):
+            return -np.inf
+        #Confine PA
+        if (PA >180.) or (PA <0):
+            return -np.inf
     else:
         w = theta
  
     #PRIORS    
-    #Confine inclination to first quadrant
-    if (incl >90.) or (incl <0):
-        return -np.inf
-    #Confine PA
-    if (PA >180.) or (PA <0):
-        return -np.inf
     #Enforce positive surface brightnesses
     if (w<0).any():
         return -np.inf
@@ -196,7 +198,7 @@ def main():
     offxguess = -.3  #offsets in arcsec
     offyguess = -.2 #offsets in arcsec
 
-    plotting = 1
+    plotting = 0
     
     #Emcee setup parameters
     nsteps = 10000 #Number of steps to take
