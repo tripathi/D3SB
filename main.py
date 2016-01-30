@@ -193,10 +193,9 @@ def main():
     plotting = 1
     
     #Emcee setup parameters
-    nsteps = 2000 #Number of steps to take
-    nthreads = 1 #Number of threads
+    nsteps = 10000 #Number of steps to take
+    nthreads = 12 #Number of threads
     MPIflag = 0 #Use MPI (1) or not (0)
-    doingpreinference = 1
 
     ###################
     # 2. Read in data #
@@ -295,15 +294,6 @@ def main():
         notes=''
     savename = basename+'_'+str(nbins)+'_'+notes
 
-    #Initialize walkers
-    p0 = f.initwalkers(cb, sbbin, alleq=0, res=res)
-    if plotting:
-        fig2 = plt.figure()
-        for iw in np.arange(nbins*4):
-            plt.plot(cb,p0[iw,:], '-co', alpha = 0.1) #Plot starting ball
-        plt.show(block=False)
-        pdb.set_trace()
-
     #Bin the visibilities for use in first pass
     newbins = np.arange(1., np.amax(np.sqrt(u**2 + v**2)), 50.)
     dprj_vis = deproject_vis([u, v, dvis, dwgt], newbins, inclguess, PAguess, offxguess, offyguess)
@@ -311,22 +301,29 @@ def main():
     dpjrho, dpjvis, dpjsig = dprj_vis
 
     if plotting:
-        fig3 = plt.figure()
+        fig2 = plt.figure()
         plt.plot(np.sqrt(u**2 + v**2), dvis.real, '.k', alpha = 0.1)
         plt.plot(dpjrho, dpjvis.real, 'o')
         plt.show(block=False)
-        fig3.savefig(basename+'dprjvis.png')
-        pdb.set_trace()
+        fig2.savefig(basename+'dprjvis.png')
 
     #######################################
     # 5. Run emcee on binned visibilities #
     #######################################
         
+    #Initialize walkers
+    p0 = f.initwalkers(cb, sbbin, alleq=0, res=res)
+    if plotting:
+        fig3 = plt.figure()
+        for iw in np.arange(len(p0)):
+            plt.plot(cb,p0[iw,:], '-co', alpha = 0.1) #Plot starting ball
+        plt.show(block=False)
+
     print 'Pre runemcee, one more chance to pause'
     pdb.set_trace()
 
     #Run emcee on deprojected visibilites to determine new bin weights ONLY
-    chain0 = runemcee(p0, 20000, nthreads, savename, dpjvis, 1./dpjsig.real**2., fitproj = 0, MPI=0)
+    chain0 = runemcee(p0, 10000, nthreads, savename, dpjvis, 1./dpjsig.real**2., fitproj = 0, MPI=0)
 
     
     #Flatten chain
@@ -337,20 +334,33 @@ def main():
     print vcentral
 
     if plotting:
-        fig5 = plt.figure()
+        fig4 = plt.figure()
         plt.plot(rsb, sb, '.y')
         plt.loglog(cb, sbbin, 'or')
         plt.errorbar(cb, sbbin, yerr = sigmabin, fmt = 'o')
         plt.plot(cb, vcentral,'.')
-        plt.show()
-
-    pdb.set_trace()
+        plt.show(block=False)
 
     #####################################
     # 5. Run emcee on full visibilities #
     #####################################
-        
-    #p0 = f.initwalkers(cb, np.insert(sbbin, 0, [inclguess, PAguess, offxguess, offyguess]), alleq=0, res=res)
 
+    #Initialize walkers
+    p1 = f.initwalkers(cb, np.insert(vcentral, 0, [inclguess, PAguess, offxguess, offyguess]), alleq=1)
+    if plotting:
+        fig5 = plt.figure()
+        for iw in np.arange(len(p1)):
+            plt.plot(cb,p1[iw,4:], '-co', alpha = 0.1) #Plot starting ball
+        plt.show(block=False)
+
+    print 'Press c to continue onto main emcee run.'    
+    pdb.set_trace()
+    
+    #Run emcee on deprojected visibilites to determine new bin weights ONLY
+    chain1 = runemcee(p1, nsteps, nthreads, savename, dvis, dwgt, fitproj=1, MPI=0)
+
+    print 'Done. Pausing for interaction if desired'
+    pdb.set_trace()
+    
 if __name__ == "__main__":
     main()
