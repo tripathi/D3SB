@@ -157,7 +157,7 @@ def discretemodel(theta, fitproj = 1):
         # coordinate change to deal with projection, rotation, and shifts
         uprime = (u*np.cos(PAr) + v*np.sin(PAr)) 
         vprime = (-u*np.sin(PAr) + v*np.cos(PAr)) * np.cos(inclr)
-        rho = np.sqrt(uprime**2 + vprime**2) * np.pi / (180.*3600.)
+        rho = np.sqrt(uprime**2 + vprime**2)/arcsec
 
         # phase center shift
         shift = np.exp(-2.*np.pi*1.0j*((u*-offrx) + (v*-offry)))
@@ -165,7 +165,7 @@ def discretemodel(theta, fitproj = 1):
     else:
         w = theta        
         shift = 1 #no phase center shift needed
-        rho = dpjrho
+        rho = dpjrho/arcsec
 
     # re-orient arrays
     wbin = np.append(np.concatenate([np.array([0.0]), w]), 0.)
@@ -173,7 +173,7 @@ def discretemodel(theta, fitproj = 1):
     intensity = np.delete(ww, bsize+1)
     
     # compute the visibilities
-    jarg = np.outer(2.*np.pi*rbin, rho/arcsec)
+    jarg = np.outer(2.*np.pi*rbin, rho)
     jinc = sc.j1(jarg)/jarg
     vrealnoshift = np.dot(2.*np.pi*rbin**2*intensity, jinc)
     vreal = vrealnoshift*shift # impart phase center shift
