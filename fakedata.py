@@ -30,16 +30,17 @@ SB = (sig/cb)**0.7 * np.exp(-(cb/sig)**2.5)	# fullA distribution; where
 int_SB = np.trapz(2.*np.pi*SB*cb, cb)		# a check on the total flux
 SB *= flux / int_SB
 
+
 #add in a resolved gap
 beam = 0.08 #check
-gapsig = 1.5*beam
+gapsig = beam
 gapin = 15/140.
-gapout = gapin + 3*gapsig
-igap = (cb > gapin) & (cb < gapout)
-
-SB[igap] -= 0.2*flux / int_SB * np.exp(-0.5*(cb[igap]/gapsig)**2)
+gapout = gapin + 3*beam
+igap = np.where((cb > gapin) & (cb < gapout))
+SB[igap]-= 0.75*SB[np.floor(np.mean(igap))] * np.exp(-0.5*((cb[igap] - np.mean([gapin, gapout]))/gapsig)**2)
 
 itheta = incl, PA, np.array([offx, offy]), SB
+
 
 
 # FT and sample it for each configuration
