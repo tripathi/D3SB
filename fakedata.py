@@ -5,8 +5,7 @@ from discreteModel import discreteModel
 
 
 # the output filename
-print 'Noise-free fake data'
-filename = 'DATA/test_noisefreevis'
+filename = 'DATA/gaptest'
 
 
 # define a high resolution set of bins for an "idealized" model
@@ -19,11 +18,27 @@ cb = 0.5*(a+b)
 bins = rin, b
 
 # the brightness profile of the model
-flux = 0.15
-sig = 0.3
-incl = PA = offx = offy = 0.0
-SB = (flux / (2*np.pi*sig**2)) * np.exp(-0.5*(cb/sig)**2)
+flux = 0.12
+sig = 0.6
+incl = 50.
+PA = 70.
+offx = -0.3
+offy = -0.2
+SB = (sig/cb)**0.7 * np.exp(-(cb/sig)**2.5)	# fullA distribution; where
+						# flux=0.12, sig=0.6, i=50, 
+						# PA = 70., offs=[-0.3, -0.2]
 int_SB = np.trapz(2.*np.pi*SB*cb, cb)		# a check on the total flux
+SB *= flux / int_SB
+
+#add in a resolved gap
+beam = 0.08 #check
+gapsig = 1.5*beam
+gapin = 15/140.
+gapout = gapin + 3*gapsig
+igap = (cb > gapin) & (cb < gapout)
+
+SB[igap] -= 0.2*flux / int_SB * np.exp(-0.5*(cb[igap]/gapsig)**2)
+
 itheta = incl, PA, np.array([offx, offy]), SB
 
 
@@ -46,12 +61,14 @@ hi_vis = discreteModel(itheta, [hu, hv], bins)
 
 # add (white) noise to the model visibilities; record noise in weights
 lnoise = np.random.normal(loc=0., scale=lrms*np.sqrt(len(lu)), size=len(lu))
-#lo_vis += lnoise + 1j*lnoise
-lo_wgt = 1./lnoise**2
+lo_vis.real += lnoise 
+lo_vis.imag += lnoise
+lo_wgt = np.ones_like(lu)/(lrms*np.sqrt(len(lu)))**2
 
 hnoise = np.random.normal(loc=0., scale=hrms*np.sqrt(len(hu)), size=len(hu))
-#hi_vis += hnoise + 1j*hnoise
-hi_wgt = 1./hnoise**2
+hi_vis.real += hnoise 
+hi_vis.imag += hnoise
+hi_wgt = np.ones_like(hu)/(lrms*np.sqrt(len(hu)))**2
 
 
 
@@ -61,4 +78,4 @@ combo_v = np.concatenate([lv, hv])
 combo_vis = np.concatenate([lo_vis, hi_vis])
 combo_wgt = np.concatenate([lo_wgt, hi_wgt])
 os.system('rm -rf '+filename+'.vis.npz')
-np.savez(filename+'.vis', u=combo_u, v=combo_v, Vis=combo_vis, Wgt=combo_wgt, SB=SB, cb=cb)
+np.savez(filename+'.vis', u=combo_u, v=combo_v, Vis=combo_vis, Wgt=combo_wgt)
