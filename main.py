@@ -188,20 +188,20 @@ def main():
     ############
     # 1.Inputs #
     ############
-    basename = 'fullA' #Name common to all files in this run
+    basename = 'fullB' #Name common to all files in this run
     freq = 340e9 #Hz
     dpc = 140. #Distance to source in pc
      
     #Parameters    
-    inclguess = 49.7 #Inclination in degrees
-    PAguess = 70.1 #position angle in degrees
-    offxguess = -.3  #offsets in arcsec
-    offyguess = -.2 #offsets in arcsec
+    inclguess = 34.1 #Inclination in degrees
+    PAguess = 139.8 #position angle in degrees
+    offxguess = 0.01  #offsets in arcsec
+    offyguess = 0.2 #offsets in arcsec
 
-    plotting = 0
+    plotting = 1
     
     #Emcee setup parameters
-    nsteps = 10000 #Number of steps to take
+    nsteps = 6000 #Number of steps to take
     nthreads = 12 #Number of threads
     MPIflag = 0 #Use MPI (1) or not (0)
 
@@ -219,7 +219,7 @@ def main():
     u, v, dvis, dwgt = data
 
     #Read in surface brightness 
-    rsb, sb, beaminfo = f.sbdata(synthimg, PAguess, inclguess, offxguess, offyguess) #Add plotting argument, if plot desired
+    rsb, sb, beaminfo = f.sbdata(synthimg, PAguess, inclguess, offxguess, offyguess) #Add plotting argument to see image, if desired
 
     ##########################################
     # 3. Set bins & find mean SB in each bin #
@@ -237,8 +237,8 @@ def main():
     binmin = 0.2*res #Where to start bins in arcsec, but will be cutoff at ri
     binmax = 1.1 #Outer bin edge in arcsec
     linstep = 0.5*res
-    lincutoff = 0.4
-    nlogbins = 12
+    lincutoff = 0.6
+    nlogbins = 10
 
     
     # Choose radial bin locations (b, rin)   

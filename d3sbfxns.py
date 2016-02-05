@@ -9,6 +9,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from astropy.io import fits
 
+#WARNING: PA and incl are in a different order than in MAIN functions
+
 def makebins(rin, b):
     """
     Return bin centers for a given choice of b and rin
