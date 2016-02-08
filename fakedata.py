@@ -2,6 +2,10 @@ import numpy as np
 import sys
 import os
 from discreteModel import discreteModel
+from scipy import interpolate
+import matplotlib.pyplot as plt
+import pdb
+
 
 
 # the output filename
@@ -24,22 +28,30 @@ incl = 50.
 PA = 70.
 offx = -0.3
 offy = -0.2
-SB = (sig/cb)**0.7 * np.exp(-(cb/sig)**2.5)	# fullA distribution; where
+nominal_SB = (sig/cb)**0.7 * np.exp(-(cb/sig)**2.5)	# fullA distribution; where
 						# flux=0.12, sig=0.6, i=50, 
 						# PA = 70., offs=[-0.3, -0.2]
-int_SB = np.trapz(2.*np.pi*SB*cb, cb)		# a check on the total flux
-SB *= flux / int_SB
+int_SB = np.trapz(2.*np.pi*nominal_SB*cb, cb)		# a check on the total flux
+nominal_SB *= flux / int_SB
+
 
 #add in a resolved gap
-beam = 0.08 #check
-gapsig = 1.5*beam
-gapin = 15/140.
-gapout = gapin + 3*gapsig
-igap = (cb > gapin) & (cb < gapout)
+gapcenter = 30./140.
+gapwidth = 0.1
+gapdepth = 0.5
+# determine amplitude of gaussian
+func = interpolate.interp1d(cb, nominal_SB)
+gap_amp = gapdepth*func(gapcenter)
+gap_profile = gap_amp * np.exp(-0.5*(cb-gapcenter)**2/gapwidth**2)
+SB = nominal_SB - gap_profile
 
-SB[igap] -= 0.2*flux / int_SB * np.exp(-0.5*(cb[igap]/gapsig)**2)
+plt.plot(cb, SB, '.')
+plt.yscale('log')
+plt.xscale('log')
+pdb.set_trace()
 
 itheta = incl, PA, np.array([offx, offy]), SB
+
 
 
 # FT and sample it for each configuration
