@@ -148,8 +148,14 @@ def initwalkers(cb, pinit, alleq=0, res=0.):
             p0[walker] = pinit * (1.+np.random.uniform(-0.2, 0.2, ndim))
         else:
             if len(inner) > 0:
-                p0[walker][np.add(nextra,inner)] = pinit[inner] * (1.+np.random.uniform(0, 2, np.size(inner)))
-            p0[walker][np.add(nextra,outer)] = pinit[outer] * (1.+np.random.uniform(-0.2, 2, np.size(outer)))
+                p0[walker][nextra+inner[0][0]] = pinit[inner[0][0]] * (1.+np.random.uniform(0, 2))
+                p0[walker][np.add(nextra,outer)] = pinit[outer] * (1.+np.random.uniform(-0.2, 2, np.size(outer)))
+#                p0[walker][np.add(nextra,inner)] = pinit[inner] * (1.+np.random.uniform(0, 2, np.size(inner))) #This doesn't use a power law like Sean's approach
+                m = np.log(p0[walker][nextra+inner[0][0]]/p0[walker][nextra+outer[0][0]])/np.log((cb[inner[0][0]])/(cb[outer[0][0]]))
+                p0[walker][np.add(nextra,inner)] = (p0[walker][0]/cb[inner[0][0]]**m) * (cb[inner]**m)
+                p0[walker][nextra:] = np.minimum.accumulate(p0[walker][nextra:])
+            else:
+                p0[walker][np.add(nextra,outer)] = pinit[outer] * (1.+np.random.uniform(-0.2, 2, np.size(outer)))
             p0[walker][0:nextra] = pinit[0:nextra]+(1.+np.random.uniform(-0.2, 0.2, nextra))            
             #This doesn't enforce monotonicity the way Sean does >>      
 
