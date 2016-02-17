@@ -5,6 +5,10 @@ def discretemodel(theta, uvsamples, rin, b, fitproj = 1):
     """
     Return complex visibilities corresponding to binned surface brightness
     :param theta: Inclination params and bin coefficients (Inclination params must be put first, before the bins)
+    :param uvsamples: Visibility u-v spacings
+    :param rin
+    :param b
+    
     Expects rbin = np.concatenate([np.array([rin]), b]), bsize, u, & v to be saved as globals
     If running on binned, deprojected visibilities, GLOBAL rho and no inclination parameters in theta
     """
@@ -12,6 +16,7 @@ def discretemodel(theta, uvsamples, rin, b, fitproj = 1):
     u, v = uvsamples                    # in **lambda** units                              
     rbin = np.concatenate([np.array([rin]), b])
     bsize = b.size
+    arcsec = 180./np.pi*3600.
     
     if fitproj:
         #unpack the parameters, if projection parameters included
