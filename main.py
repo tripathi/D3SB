@@ -188,7 +188,7 @@ def main():
     ############
     # 1.Inputs #
     ############
-    basename = 'gaptest2'
+    basename = 'gaptest3'
 #fullA' #Name common to all files in this run
     freq = 340e9 #Hz
     dpc = 140. #Distance to source in pc
@@ -202,7 +202,7 @@ def main():
     plotting = 1
     
     #Emcee setup parameters
-    nsteps = 8000 #Number of steps to take
+    nsteps = 7000 #Number of steps to take
     nthreads = 12 #Number of threads
     MPIflag = 0 #Use MPI (1) or not (0)
 
@@ -236,7 +236,7 @@ def main():
 
     #Bin parameters
     rin = 0.01/dpc #Inner cutoff in arcsec
-    binmin = 0.2*res #Where to start bins in arcsec, but will be cutoff at ri
+    binmin = 0.44*res #Where to start bins in arcsec, but will be cutoff at ri
     binmax = 1.1 #Outer bin edge in arcsec
     linstep = 0.5*res
     lincutoff = 0.4
@@ -284,8 +284,8 @@ def main():
     bsize = b.size
     nbins = bsize
 
-#    print "Press c to continue \n"
-#    pdb.set_trace()
+    print "Press c to continue \n"
+    pdb.set_trace()
 
     #######################
     # 4. Initialize emcee #
@@ -334,7 +334,7 @@ def main():
 #    pdb.set_trace()
 
     #Run emcee on deprojected visibilites to determine new bin weights ONLY
-    chain0 = runemcee(p0, 20000, nthreads, savename, dpjvis, 1./dpjsig.real**2., fitproj = 0, MPI=0)
+    chain0 = runemcee(p0, 10000, nthreads, savename, dpjvis, 1./dpjsig.real**2., fitproj = 0, MPI=0)
 
     
     #Flatten chain
@@ -342,6 +342,7 @@ def main():
     ndim = nbins #+ 1 #CHANGE accordingly
     samplesw0 = chain0[:, cstart:, :].reshape((-1,ndim))
     vcentral = np.percentile(samplesw0, 50, axis=0)
+    print 'Preliminary central values:'
     print vcentral
 
     if plotting:
@@ -352,14 +353,13 @@ def main():
         plt.plot(cb, vcentral,'.')
         plt.show(block=False)
         fig4.savefig(basename+'liteoutput.png')
-    pdb.set_trace()
 
     samplesw0 = chain0[:, cstart:, :].reshape((-1,ndim))
     vcentral = np.percentile(samplesw0, 50, axis=0)
     print vcentral
 
     #####################################
-    # 5. Run emcee on full visibilities #
+    # 6. Run emcee on full visibilities #
     #####################################
 
     #Initialize walkers
@@ -371,8 +371,8 @@ def main():
         plt.show(block=False)
         fig5.savefig(basename+'startingball1.png')
 
-#    print 'Press c to continue onto main emcee run.'    
-#    pdb.set_trace()
+    print 'STOP! Press c to continue onto main emcee run.'    
+    pdb.set_trace()
     
     #Run emcee on deprojected visibilites to determine new bin weights ONLY
     chain1 = runemcee(p1, nsteps, nthreads, savename, dvis, dwgt, fitproj=1, MPI=0)
