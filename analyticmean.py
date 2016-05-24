@@ -2,7 +2,7 @@ import numpy as np
 import pdb
 import matplotlib.pyplot as plt
 import scipy.special as sc
-
+import d3sbfxns as f
 
 def readinVis(datafile):
     """
@@ -12,19 +12,19 @@ def readinVis(datafile):
     datfile = np.load(datafile)
     return datfile['u'], datfile['v'], datfile['Vis'], datfile['Wgt']#, datfile['freq']   
 
-def kexp2(i1, i2, ibins=None, a=None, l=None):
+def kexp2(i1, i2, ibins=None, a=None, l=None, gamma=None):
     ri = ibins[i1]
     rj = ibins[i2]
-    return a*a * np.exp(-((ri - rj)**2.)/(2.*l*l)) #Doesn't have cross term
+    return ri**gamma*a*a * np.exp(-((ri - rj)**2.)/(2.*l*l)) #Doesn't have cross term
 
-def calccovar(binsin, ain, lin):
+def calccovar(binsin, ain, lin, gamin):
     '''
     Calculate the covariance matrix using a squared exponential kernel
     a: normalization amplitude
     l: correlation length
     '''
     nbins = binsin.shape[0]
-    cov = np.fromfunction(kexp2,(nbins,nbins), ibins=binsin, a=ain, l=lin, dtype = np.int)
+    cov = np.fromfunction(kexp2,(nbins,nbins), ibins=binsin, a=ain, l=lin, gamma = gamin, dtype = np.int)
     return cov
     
 
@@ -34,7 +34,8 @@ def main():
     #Data input
     hiresvis = 'DATA/fullA.vis.npz'
     u, v, dvis, dwgt = readinVis(hiresvis)
-
+    synthimg = 'DATA/fullA.image.fits'
+    
     #Geometric params [Currently hardcoded]
     incl = 50.
     PA = 70.
@@ -71,11 +72,18 @@ def main():
     binmin = 0.1
     binmax = 1.1
     rin = .01/140.
+
+    ncycles = 3
     
-    for count in range(5):
+    for count in range(ncycles):
         nbins = (count+1)*10
         b = np.linspace(binmin, binmax, num=nbins-1) 
+
+        #Find mean & std.dev. values at bin locations from synthesized image
+        rsb, sb, beaminfo = f.sbdata(synthimg, PAr, inclr, offrx, offry) #Add plotting argument to see image, if desired
+        sbbin, sigmabin = f.sbmeanbin(rin, b, rsb, sb)
     
+            
         rleft = np.insert(b[:-1],0,rin)
         rright = b
         cb = 0.5*(rleft + rright)
@@ -131,23 +139,24 @@ def main():
         #############
         
         #Hyperparameter guesses
-        gpa = 1.
+        gpa = .5
+        gam = -.5
         gpl = cb[3]-cb[1]
-        C = calccovar(cb, gpa, gpl)
+        C = calccovar(cb, gpa, gpl, gam)
         Cinv = np.linalg.inv(C)
-        Sw = lhs + Cinv
+        Swinv = lhs + Cinv
         
-        intermed2 = np.dot(Cinv,nominal_SB)
+        intermed2 = np.dot(Cinv,sbbin)
         
-        wtilde = np.dot(np.linalg.inv(Sw),np.dot(lhs,result)) + np.dot(np.linalg.inv(Sw),intermed2)
+        wtilde = np.dot(np.linalg.inv(Swinv),np.dot(lhs,result)) + np.dot(np.linalg.inv(Sw),intermed2)
         
         #        print 'Press c to continue to plotting'
         #        pdb.set_trace()
         #Plot w_hat
-        plt.subplot(2,5,count+1)
+        plt.subplot(2,ncycles,count+1)
         plt.plot(cb, nominal_SB, 'ks')
         plt.plot(cb, nominal_SB, '-k')
-        #    plt.plot(cb, initfile['sbbin'],'co')
+        plt.plot(cb, sbbin,'co')
         plt.plot(cb, result, 'bo')
         plt.plot(cb, wtilde, 'ro')
         ax = plt.gca()
@@ -155,7 +164,7 @@ def main():
         ax.set_xscale('log')
         ax.set_yscale('log')
         
-        plt.subplot(2,5,count+6)
+        plt.subplot(2,ncycles,count+1+ncycles)
         plt.plot(cb, nominal_SB-result, 'bo')
         plt.plot(cb, nominal_SB-wtilde, 'ro')
 
