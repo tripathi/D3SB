@@ -73,7 +73,7 @@ def main():
     binmax = 1.1
     rin = .01/140.
 
-    ncycles = 3
+    ncycles = 1
     
     for count in range(ncycles):
         nbins = (count+1)*10
@@ -139,16 +139,16 @@ def main():
         #############
         
         #Hyperparameter guesses
-        gpa = .5
+        gpa = 2.
         gam = -.5
-        gpl = cb[3]-cb[1]
+        gpl = cb[4]-cb[1]
         C = calccovar(cb, gpa, gpl, gam)
         Cinv = np.linalg.inv(C)
         Swinv = lhs + Cinv
         
         intermed2 = np.dot(Cinv,sbbin)
         
-        wtilde = np.dot(np.linalg.inv(Swinv),np.dot(lhs,result)) + np.dot(np.linalg.inv(Sw),intermed2)
+        wtilde = np.dot(np.linalg.inv(Swinv),np.dot(lhs,result)) + np.dot(np.linalg.inv(Swinv),intermed2)
         
         #        print 'Press c to continue to plotting'
         #        pdb.set_trace()
