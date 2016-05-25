@@ -3,6 +3,7 @@ import pdb
 import matplotlib.pyplot as plt
 import scipy.special as sc
 import d3sbfxns as f
+import time
 
 def readinVis(datafile):
     """
@@ -73,10 +74,11 @@ def main():
     binmax = 1.1
     rin = .01/140.
 
-    ncycles = 1
+    ncycles = 2
     
     for count in range(ncycles):
-        nbins = (count+1)*10
+        tic = time.time()
+        nbins = 20#(count+1)*20
         b = np.linspace(binmin, binmax, num=nbins-1) 
 
         #Find mean & std.dev. values at bin locations from synthesized image
@@ -139,9 +141,9 @@ def main():
         #############
         
         #Hyperparameter guesses
-        gpa = 2.
-        gam = -.5
-        gpl = cb[4]-cb[1]
+        gpa = 1.
+        gam = count*(-.5)
+        gpl = cb[3]-cb[1]
         C = calccovar(cb, gpa, gpl, gam)
         Cinv = np.linalg.inv(C)
         Swinv = lhs + Cinv
@@ -149,14 +151,18 @@ def main():
         intermed2 = np.dot(Cinv,sbbin)
         
         wtilde = np.dot(np.linalg.inv(Swinv),np.dot(lhs,result)) + np.dot(np.linalg.inv(Swinv),intermed2)
+        toc = time.time()
+        print 'Time taken is ', toc-tic
+        print 'Wtilde is:', wtilde
         
         #        print 'Press c to continue to plotting'
         #        pdb.set_trace()
         #Plot w_hat
+        plt.figure(1)
         plt.subplot(2,ncycles,count+1)
         plt.plot(cb, nominal_SB, 'ks')
         plt.plot(cb, nominal_SB, '-k')
-        plt.plot(cb, sbbin,'co')
+        plt.plot(cb, sbbin,'-c')
         plt.plot(cb, result, 'bo')
         plt.plot(cb, wtilde, 'ro')
         ax = plt.gca()
@@ -168,19 +174,47 @@ def main():
         plt.plot(cb, nominal_SB-result, 'bo')
         plt.plot(cb, nominal_SB-wtilde, 'ro')
 
-    pdb.set_trace()    
-    #Plot V
-    plt.figure(2)
-    plt.imshow(lhs, interpolation='nearest', cmap='Blues', origin = 'upper')
+        
+    #Plot matrices
+        plt.figure(2)
+        plt.subplot(ncycles,4,4*count+1)
+        plt.imshow(np.linalg.inv(lhs), interpolation='nearest', cmap='Blues', origin = 'upper')
+        plt.title(r'${V_w}$')
+
+        plt.subplot(ncycles,4,4*count+2)
+        plt.imshow(C, interpolation='nearest', cmap='Blues', origin = 'upper')
+        plt.title(r'$C$')
+
+
+        plt.subplot(ncycles,4,4*count+3)
+        plt.imshow(lhs, interpolation='nearest', cmap='Blues', origin = 'upper')
+        plt.title(r'${V_w}^{-1}$')
+
+        plt.subplot(ncycles,4,4*count+4)
+        plt.imshow(Cinv, interpolation='nearest', cmap='Blues', origin = 'upper')
+        plt.title(r'$C^{-1}$')
+            
+
     pdb.set_trace()
+    plt.figure(3)
+#    fig, ax = plt.subplots(figsize=(10,6))
 
-    fig, ax = plt.subplots(figsize=(10,6))
+    plt.subplot(211)
+    for draw in np.random.multivariate_normal(np.zeros_like(result), C, size=20):
+        plt.plot(cb, draw, color="0.5")
+
+    plt.subplot(212)        
+    for draw in np.random.multivariate_normal(wtilde, np.linalg.inv(lhs), size=20):
+        plt.plot(cb, draw, color="0.5")
     
-    for draw in np.random.multivariate_normal(np.zeros_like(result), C, size=10):
-        ax.plot(cb, draw, color="0.5")
+    plt.plot(cb, result, color="b", label=r"$\hat{w}$")
+    plt.plot(cb, wtilde, color="r", label=r"${w}~w/GP$")
+
+    plt.plot(cb, nominal_SB, color="k", label="truth")
+    plt.legend(loc="upper right")
 
     
-
+    pdb.set_trace()
 
     
 if __name__ == "__main__":
