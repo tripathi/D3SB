@@ -74,7 +74,7 @@ def main():
     binmax = 1.1
     rin = .01/140.
 
-    ncycles = 2
+    ncycles = 1
     
     for count in range(ncycles):
         tic = time.time()
@@ -147,8 +147,10 @@ def main():
         C = calccovar(cb, gpa, gpl, gam)
         Cinv = np.linalg.inv(C)
         Swinv = lhs + Cinv
+
+        checkprod = np.dot (C, Cinv)
         
-        intermed2 = np.dot(Cinv,sbbin)
+        intermed2 = np.dot(Cinv,nominal_SB)
         
         wtilde = np.dot(np.linalg.inv(Swinv),np.dot(lhs,result)) + np.dot(np.linalg.inv(Swinv),intermed2)
         toc = time.time()
@@ -174,7 +176,6 @@ def main():
         plt.plot(cb, nominal_SB-result, 'bo')
         plt.plot(cb, nominal_SB-wtilde, 'ro')
 
-        
     #Plot matrices
         plt.figure(2)
         plt.subplot(ncycles,4,4*count+1)
@@ -197,20 +198,37 @@ def main():
 
     pdb.set_trace()
     plt.figure(3)
+#    plt.imshow(checkprod, interpolation='none', cmap='Blues')
+#    plt.show()
+#    pdb.set_trace()
 #    fig, ax = plt.subplots(figsize=(10,6))
 
-    plt.subplot(211)
+    plt.subplot(311)
+    plt.title('Draws from C')
     for draw in np.random.multivariate_normal(np.zeros_like(result), C, size=20):
         plt.plot(cb, draw, color="0.5")
 
-    plt.subplot(212)        
-    for draw in np.random.multivariate_normal(wtilde, np.linalg.inv(lhs), size=20):
+    plt.plot(cb, nominal_SB-result, 'bo')
+
+    plt.subplot(312)        
+    plt.title('Draws from Vw')
+    for draw in np.random.multivariate_normal(result, np.linalg.inv(lhs), size=20):
         plt.plot(cb, draw, color="0.5")
     
     plt.plot(cb, result, color="b", label=r"$\hat{w}$")
     plt.plot(cb, wtilde, color="r", label=r"${w}~w/GP$")
-
     plt.plot(cb, nominal_SB, color="k", label="truth")
+
+
+    plt.subplot(313)
+    plt.title('Draws from Sw')        
+    for draw in np.random.multivariate_normal(wtilde, np.linalg.inv(Swinv), size=20):
+        plt.plot(cb, draw, color="0.5")
+    plt.plot(cb, result, color="b", label=r"$\hat{w}$", marker = 'o', linestyle='-')
+    plt.plot(cb, wtilde, color="r", label=r"${w}~w/GP$", marker = 'o', linestyle='-')
+    plt.plot(cb, nominal_SB, color="k", label="truth")
+
+    
     plt.legend(loc="upper right")
 
     
