@@ -43,7 +43,7 @@ def discretemodel(theta, uvsamples, rin, b, fitproj = 1):
     else:
         w = theta        
         shift = 1 #no phase center shift needed
-        rho = dpjrho/arcsec
+        rho = np.sqrt(u**2 + v**2)/arcsec#dpjrho/arcsec
 
     # re-orient arrays
     wbin = np.append(np.concatenate([np.array([0.0]), w]), 0.)
