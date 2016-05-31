@@ -34,24 +34,25 @@ def sbdata(filename, PA=0., incl=0., offx=0., offy=0., plotting = 0):
     RA  = hdr['CDELT1']*(np.arange(hdr['NAXIS1'])-(hdr['CRPIX1']-1))
     DEC = hdr['CDELT2']*(np.arange(hdr['NAXIS2'])-(hdr['CRPIX2']-1))
     omega_beam = np.pi*(3600.**2)*hdr['BMAJ']*hdr['BMIN']/(4.*np.log(2.))
-
-    #Plot original image
-    if plotting:
-        plt.subplot(1,2,1)
-        plt.imshow(dimage, cmap='gray', origin='lower', interpolation='nearest',
-               vmin=-5e-5, vmax=.6)
-        plt.title('Original')
-    
+       
     #Construct the grid for the image
     PAr = np.radians(PA)
     inclr = np.radians(incl)
     RAo, DECo = np.meshgrid(3600.*RA, 3600.*DEC)
 
+    #Plot original image
+    if plotting:
+        plt.subplot(1,2,1)
+        plt.pcolormesh(RAo, DECo, dimage)
+        plt.title('Original')
+    
     #Deproject image       
     ap = ((RAo-offx)*np.cos(PAr) - (DECo-offy)*np.sin(PAr))/np.cos(inclr)
     dp = (RAo-offx)*np.sin(PAr) + (DECo-offy)*np.cos(PAr)
     imrad = np.sqrt(ap**2 + dp**2)
+
     dimage *= np.cos(inclr)/omega_beam
+
       
     #Beam information to return (convert beam attributes to arcsec)
     #Useful for what >>
@@ -60,8 +61,7 @@ def sbdata(filename, PA=0., incl=0., offx=0., offy=0., plotting = 0):
     #Plot deprojected image
     if plotting:
         plt.subplot(1,2,2)
-        plt.imshow(dimage, cmap='gray', origin='lower', interpolation='nearest',
-               vmin=-5e-5, vmax=.6)
+        plt.pcolormesh(ap, dp, dimage)
         plt.title('Deprojected image')
         plt.show(block=False)
     
@@ -79,7 +79,7 @@ def sbmeanbin(rin, b, rpim, SBpim):
     for i in range(nbins):
         SBdscp[i] = np.nanmean(SBpim[((rpim>b[i]) & (rpim<b[i+1]))])
         #Check that this needs to be a nanmean, rather than a mean >>
-        SBstd[i] = np.std(SBpim[((rpim>b[i]) & (rpim<b[i+1]))])    
+        SBstd[i] = np.std(SBpim[((rpim>b[i]) & (rpim<b[i+1]))])
     return SBdscp, SBstd
 
 def sbguess(file, rin, b, PA=0., incl=0., offx=0., offy=0., plotting=0, freq=340e9, dsource = 140.):

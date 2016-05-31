@@ -21,7 +21,7 @@ def readinVis(datafile):
     :param datafile: name of .npz file
     """
     datfile = np.load(datafile)
-    data = datfile['u'], datfile['v'], datfile['Vis'], datfile['Wgt']   
+    data = datfile['u'], datfile['v'], datfile['Vis'], datfile['Wgt']#, datfile['freq']   
     return data
 
 
@@ -188,21 +188,21 @@ def main():
     ############
     # 1.Inputs #
     ############
-    basename = 'gaptest2'
+    basename = 'HLTau_B6cont'
 #fullA' #Name common to all files in this run
-    freq = 340e9 #Hz
+#    freq = 233e9 #Hz >>Could get from the data >>
     dpc = 140. #Distance to source in pc
      
     #Parameters    
-    inclguess = 49.7 #Inclination in degrees
-    PAguess = 70.1 #position angle in degrees
-    offxguess = -.3  #offsets in arcsec
-    offyguess = -.2 #offsets in arcsec
+    inclguess = 46.7 #Inclination in degrees
+    PAguess = 138.02 #position angle in degrees
+    offxguess = -0.015  #offsets in arcsec
+    offyguess = 0.195 #offsets in arcsec
 
     plotting = 1
     
     #Emcee setup parameters
-    nsteps = 8000 #Number of steps to take
+    nsteps = 100 #Number of steps to take
     nthreads = 12 #Number of threads
     MPIflag = 0 #Use MPI (1) or not (0)
 
@@ -218,10 +218,11 @@ def main():
     data = readinVis(hiresvis) #Used for CARMA visibilities.
     global u, v
     u, v, dvis, dwgt = data
-
+    
     #Read in surface brightness 
     rsb, sb, beaminfo = f.sbdata(synthimg, PAguess, inclguess, offxguess, offyguess) #Add plotting argument to see image, if desired
 
+   
     ##########################################
     # 3. Set bins & find mean SB in each bin #
     ##########################################
@@ -231,16 +232,22 @@ def main():
     global arcsec
     arcsec = 180./np.pi*3600.
     global res
+    #WARNING CHECK UNITS >> The following lines are only nec is u and v are NOT in lambda
+#    freq= freq[0][0]
+#    dvis = dvis[0][:]
+#    dwgt = dwgt[0][:]
+#    u = u * freq/cms
+#    v = v * freq/cms
     res = 1./np.amax(np.sqrt(u**2 + v**2))*arcsec #is this correct, or do I needcms/freq/ >>
     print 'Resolution ', res
 
     #Bin parameters
-    rin = 0.01/dpc #Inner cutoff in arcsec
+    rin = 0.1/dpc #Inner cutoff in arcsec
     binmin = 0.2*res #Where to start bins in arcsec, but will be cutoff at ri
     binmax = 1.1 #Outer bin edge in arcsec
-    linstep = 0.5*res
-    lincutoff = 0.4
-    nlogbins = 12
+    linstep = 1.*res #Changed temporarily
+    lincutoff = 0.6
+    nlogbins = 11
 
     
     # Choose radial bin locations (b, rin)   
@@ -251,9 +258,11 @@ def main():
     
     #Find mean & std.dev. values at bin locations from synthesized image
     sbbin, sigmabin = f.sbmeanbin(rin, b, rsb, sb)
+    #Remove bins without pixels
+    inotnan = np.where(np.logical_not(np.isnan(sbbin)))
+    b= b[inotnan]
+    sbbin, sigmabin = f.sbmeanbin(rin, b, rsb, sb) #Redundant to remove NaNs but leave rin method in place >>
     cb = f.makebins(rin, b)
-
-    # Need to deal with bins without data that yield NaN >>    
 #    w0[w0<0]=0 #Don't save negative results >>
 
     #Print results
@@ -275,7 +284,7 @@ def main():
         ax2.plot(cb, np.ones_like(cb), ':k')
         fig1.subplots_adjust(hspace = 0)
         plt.setp([a.get_xticklabels() for a in fig1.axes[:-1]], visible=False)
-        plt.show(block=False)
+#        plt.show(block=False)
         fig1.savefig(basename+'sbcombare.png')
     
     #Globals needed by discretemodel
@@ -283,9 +292,9 @@ def main():
     rbin = np.concatenate([np.array([rin]), b]) #~~~
     bsize = b.size
     nbins = bsize
-
-#    print "Press c to continue \n"
-#    pdb.set_trace()
+    
+    print "Press c to continue \n"
+    pdb.set_trace()
 
     #######################
     # 4. Initialize emcee #
@@ -305,7 +314,7 @@ def main():
     savename = basename+'_'+str(nbins)+'_'+notes
 
     #Bin the visibilities for use in first pass
-    newbins = np.arange(1., np.amax(np.sqrt(u**2 + v**2)), 50.)
+    newbins = np.arange(1., np.amax(np.sqrt(u**2 + v**2))/1000, 50.)
     dprj_vis = deproject_vis([u, v, dvis, dwgt], newbins, inclguess, PAguess, offxguess, offyguess)
     global dpjrho
     dpjrho, dpjvis, dpjsig = dprj_vis
@@ -314,7 +323,7 @@ def main():
         fig2 = plt.figure()
         plt.plot(np.sqrt(u**2 + v**2), dvis.real, '.k', alpha = 0.1)
         plt.plot(dpjrho, dpjvis.real, 'o')
-        plt.show(block=False)
+#        plt.show(block=False)
         fig2.savefig(basename+'dprjvis.png')
 
     #######################################
@@ -327,21 +336,22 @@ def main():
         fig3 = plt.figure()
         for iw in np.arange(len(p0)):
             plt.plot(cb,p0[iw,:], '-co', alpha = 0.1) #Plot starting ball
-        plt.show(block=False)
+#        plt.show(block=False)
         fig3.savefig(basename+'startingball0.png')
 
-#    print 'Pre runemcee, one more chance to pause'
-#    pdb.set_trace()
+    print 'Pre runemcee, one more chance to pause'
+    pdb.set_trace()
 
     #Run emcee on deprojected visibilites to determine new bin weights ONLY
-    chain0 = runemcee(p0, 20000, nthreads, savename, dpjvis, 1./dpjsig.real**2., fitproj = 0, MPI=0)
+    chain0 = runemcee(p0, 30000, nthreads, savename, dpjvis, 1./dpjsig.real**2., fitproj = 0, MPI=0)
 
     
     #Flatten chain
-    cstart = 0
+    cstart = 2000
     ndim = nbins #+ 1 #CHANGE accordingly
     samplesw0 = chain0[:, cstart:, :].reshape((-1,ndim))
     vcentral = np.percentile(samplesw0, 50, axis=0)
+    print 'Preliminary central values:'
     print vcentral
 
     if plotting:
@@ -350,16 +360,23 @@ def main():
         plt.loglog(cb, sbbin, 'or')
         plt.errorbar(cb, sbbin, yerr = sigmabin, fmt = 'o')
         plt.plot(cb, vcentral,'.')
-        plt.show(block=False)
-        fig4.savefig(basename+'liteoutput.png')
-    pdb.set_trace()
+#        plt.show(block=False)
+        fig4.savefig(savename+'liteoutput.png')
+
+        ## fig14 = plt.figure()
+        ## for idim in np.arange(ndim):
+        ##     for iw in np.arange(ndim*4):
+        ##         plt.subplot(6,7,idim+1)
+        ##         plt.plot(chain0[iw,1000:,idim],'b', linewidth=0.5)
+        ## fig14.savefig(savename+'litechains.png')
+        
 
     samplesw0 = chain0[:, cstart:, :].reshape((-1,ndim))
     vcentral = np.percentile(samplesw0, 50, axis=0)
     print vcentral
 
     #####################################
-    # 5. Run emcee on full visibilities #
+    # 6. Run emcee on full visibilities #
     #####################################
 
     #Initialize walkers
@@ -368,11 +385,11 @@ def main():
         fig5 = plt.figure()
         for iw in np.arange(len(p1)):
             plt.plot(cb,p1[iw,4:], '-co', alpha = 0.1) #Plot starting ball
-        plt.show(block=False)
+#        plt.show(block=False)
         fig5.savefig(basename+'startingball1.png')
 
-#    print 'Press c to continue onto main emcee run.'    
-#    pdb.set_trace()
+    print 'STOP! Press c to continue onto main emcee run.'    
+    pdb.set_trace()
     
     #Run emcee on deprojected visibilites to determine new bin weights ONLY
     chain1 = runemcee(p1, nsteps, nthreads, savename, dvis, dwgt, fitproj=1, MPI=0)
