@@ -18,7 +18,9 @@ def readinVis(datafile):
 
 def initgpa(nwalkers):
     #This is specific to GP amplitude, not generic parameters
-    return np.random.uniform(0,1,nwalkers).reshape((nwalkers,1))
+    tmp =  np.random.uniform(0,1,nwalkers*2).reshape((nwalkers,2))
+    tmp[:,1] = tmp[:,1]*5
+    return tmp
 
 def runemcee(pin, nsteps, nthreads, savename, meanw):
     """
@@ -29,7 +31,7 @@ def runemcee(pin, nsteps, nthreads, savename, meanw):
     :param meanw: Mean to use for covariance
     """
     #Number of parameters and walkers, set by p0
-    ndim = 1#np.shape(pin)[1]
+    ndim = 2#np.shape(pin)[1]
     nwalkers = 16#ndim * 4
     
     #Initialize GP param walkers
@@ -70,7 +72,7 @@ def lnprob(theta, meanw):
     """  
     # unpack the parameters
     gpa = theta[0]
-    #    gpl = theta[1]
+    gpl = theta[1]
 
  
     #PRIORS    
@@ -78,11 +80,11 @@ def lnprob(theta, meanw):
     if (gpa<0).any():
         return -np.inf
 
-    ## if (gpl<0).any():
-    ##     return -np.inf
-    
+    if (gpl<0).any():
+        return -np.inf
+
     #LIKELIHOOD
-    wcalc = calcwtilde(gpa, meanw)
+    wcalc = calcwtilde(theta, meanw)
     mvis = np.dot(x, wcalc)
 
     
@@ -203,7 +205,7 @@ def analyticmain():
     #
     gpaguess = np.array([0.05])#np.random.uniform(0,1,nwalkers)
     nsteps = 10000
-    nthreads = 2
+    nthreads = 12
     notes = raw_input('Notes? Only give a short phrase to append to filenames\n')
     savename = notes+'_'+str(nbins)
 
@@ -215,13 +217,13 @@ def analyticmain():
     #        np.savez('linalgparts', what = result, x=x, y = y, sigmainvdiag = dwgt.real, v = lhs, truth = nominal_SB, bincenter = cb)
         
 
-def calcwtilde(gpa, meanw):        
+def calcwtilde(theta, meanw):        
     #Use GP prior
 
     #Hyperparameters
-    #    gpa = 1.
+    gpa = theta[0]
     gam = 1.
-    gpl = cb[3]-cb[1]
+    gpl = theta[1]#cb[3]-cb[1]
 
     #Calculate covariance
     C = calccovar(cb, gpa, gpl, gam)
