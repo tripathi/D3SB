@@ -6,6 +6,7 @@ import d3sbfxns as f
 import time
 from datetime import datetime
 import emcee
+from scipy.optimize import minimize
 
 def readinVis(datafile):
     """
@@ -19,7 +20,8 @@ def readinVis(datafile):
 def initgpa(nwalkers):
     #This is specific to GP amplitude, not generic parameters
     tmp =  np.random.uniform(0,1,nwalkers*2).reshape((nwalkers,2))
-    tmp[:,1] = tmp[:,1]*5
+    tmp[:,0] = tmp[:,0]*.5
+    tmp[:,1] = tmp[:,1]*.5
     return tmp
 
 def runemcee(pin, nsteps, nthreads, savename, meanw):
@@ -32,7 +34,7 @@ def runemcee(pin, nsteps, nthreads, savename, meanw):
     """
     #Number of parameters and walkers, set by p0
     ndim = 2#np.shape(pin)[1]
-    nwalkers = 16#ndim * 4
+    nwalkers = 100#ndim * 4
     
     #Initialize GP param walkers
     p0 = initgpa(nwalkers)
@@ -95,6 +97,38 @@ def lnprob(theta, meanw):
 
     # return a log-posterior value
     return -0.5*(chi2)
+
+def chisq(theta, meanw):
+    """
+    Compute log posterior for current parameter values
+    :param theta: Hyperparameters to be optimized
+    :param meanw: Mean to use for covariance 
+    """  
+    # unpack the parameters
+    gpa = theta[0]
+    gpl = .15#theta[1]
+
+ 
+    #PRIORS    
+    #Enforce positive amplitude
+    if (gpa<0).any():
+        return -np.inf
+
+#    if (gpl<0).any():
+#        return -np.inf
+
+    #LIKELIHOOD
+    wcalc = calcwtilde(theta, meanw)
+    mvis = np.dot(x, wcalc)
+
+    
+    #Compute a chi2 value (proportional to log-likelihood)
+    #Fix the imaginary component
+    chi2 = np.sum( dwgt*(dvis.real-mvis.real)**2) #+ dwgt*(dvis.imag-mvis.imag)**2 )
+
+
+    # return a log-posterior value
+    return (chi2)
 
 
 def analyticmain():
@@ -204,12 +238,20 @@ def analyticmain():
 
     #
     gpaguess = np.array([0.05])#np.random.uniform(0,1,nwalkers)
-    nsteps = 10000
+    nsteps = 50000
     nthreads = 12
+ 
+
+    print 'Optimization!'
+    gpguess = np.array([.015])#,.19])
+    opt = minimize(chisq, gpguess, args=(nominal_SB), method='Powell')#, method='TNC', bounds=[(1e-12,10)])#Nelder-Mead', options={'maxiter': 100000, 'maxfev': 100000})
+    print opt.x
+    print opt
+    print 'Stopping optimization now'
+    pdb.set_trace()    
+    print 'Going to start emcee'
     notes = raw_input('Notes? Only give a short phrase to append to filenames\n')
     savename = notes+'_'+str(nbins)
-
-    print 'Going to start emcee'
     chain1 = runemcee(gpaguess, nsteps, nthreads, savename,nominal_SB)
 
     pdb.set_trace()
@@ -223,7 +265,7 @@ def calcwtilde(theta, meanw):
     #Hyperparameters
     gpa = theta[0]
     gam = 1.
-    gpl = theta[1]#cb[3]-cb[1]
+    gpl = .15#theta[1]#cb[3]-cb[1]
 
     #Calculate covariance
     C = calccovar(cb, gpa, gpl, gam)
