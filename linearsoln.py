@@ -4,8 +4,8 @@ import pdb
 from deprojectVis import deproject_vis
 #We have Ndata data visibilities (D) that we'd like to solve for.
 #The covariance on the data is Sigma
-def deprojvis(visfilename, nvisbins):
-    #visfilename = 'DATA/fullA_nf.vis.npz' ##Set
+def main():
+    visfilename = 'DATA/fullA_nf.vis.npz' ##Set
     datfile = np.load(visfilename)
     datfile['u'], datfile['v'], datfile['Vis'], datfile['Wgt']
 
@@ -25,8 +25,7 @@ def deprojvis(visfilename, nvisbins):
     offx = -0.3
     offy = -0.2
 
-
-    #nvisbins = 100 ##Set
+    nvisbins = 100 ##Set
     if (nvisbins>1):
         visbins = np.linspace(np.amin(rhoorig)/1000., np.amax(rhoorig)/1000., nvisbins)
         rhodeproj, Ddeproj, sigdeproj = deproject_vis([uorig, vorig, Dorig, Dwgt], visbins, incl, PA, offx, offy)
@@ -35,36 +34,22 @@ def deprojvis(visfilename, nvisbins):
     D = Ddeproj
     rho = rhodeproj
     Sigmainv = 1./np.square(np.absolute(sigdeproj))
-    #pdb.set_trace()
+    Ndata = D.size
+    print 'Number of vis is', Ndata, np.shape(rho), np.shape(Sigmainv)
 
+    #We have a model visibility (M) which uses Nbins annuli
+    #M=Xw, where X is only a function of the bins and baseline
 
-    print 'Rho', rho[1], rho[12], rhoorig[12]
-    print 'Sigmainv this round', Sigmainv[1], Sigmainv[12], ' wgt', Dwgt[12]
+    #Select model annuli radii
+    rmin = 0.01/140.
+    rmax = 1.1
+    nbins = 30
+    radii = np.linspace(rmin, rmax, num=nbins+1) #Currently does NOT use rin
+    rleft = radii[:-1]
+    rright = radii[1:]
+    rcenter = (rleft+rright)/2.
 
-    return D, rho, Sigmainv, Dorig, rhoorig, Dwgt
-
-def main():
-    visfile = 'DATA/fullA.vis.npz'
-    Dbin, rhobin, Sigmainvbin, Dorig1, rhoorig1, Dwgt1 = deprojvis(visfile, 100)
-    Dall, rhoall, Sigmainvall, Dorig2, rhoorig2, Dwgt2 = deprojvis(visfile, 0)
-
-    #Test plots
-    plt.subplot(121)
-    plt.plot(rhoorig1, Dorig1,'.b')
-    plt.plot(rhoall, Dall, '.k')
-    plt.plot(rhobin, Dbin,'oy')
-
-    plt.subplot(122)
-    plt.plot(rhoorig1, Dwgt1, '.b')
-    plt.plot(rhoall, Sigmainvall, '.k')
-    plt.plot(rhobin, Sigmainvbin, 'oy')
-
-    plt.show()
     pdb.set_trace()
-# #We have a model visibility (M) which uses Nbins annuli
-# #M=Xw, where X is only a function of the bins and baseline
-# rleft
-# rright
 # X =
 #
 # #Calculate uniform prior mean and covariance matrix
@@ -84,6 +69,7 @@ def main():
 #
 # Cgp = np.linalg.inv(Cuinv+np.Cwinv)
 # wgp = np.dot(Cgp,(np.dot(Cuinv, wu) + np.dot(Cwinv, muw)))
+    return
 
 if __name__ == "__main__":
     main()
