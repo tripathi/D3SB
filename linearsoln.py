@@ -34,7 +34,7 @@ def deprojvis(visfilename, nvisbins):
         rhodeproj, Ddeproj, sigdeproj = deproject_vis([uorig, vorig, Dorig, Dwgt], incl=incl, PA=PA, offx=offx, offy=offy)
     D = Ddeproj
     rho = rhodeproj
-    Sigmainv = 1./np.square(sigdeproj)
+    Sigmainv = 1./np.square(np.absolute(sigdeproj))
     #pdb.set_trace()
 
 
