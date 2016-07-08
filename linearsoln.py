@@ -9,11 +9,11 @@ def deprojvis(visfilename, nvisbins):
     datfile = np.load(visfilename)
     datfile['u'], datfile['v'], datfile['Vis'], datfile['Wgt']
 
-    Dorig = datfile['Vis']
+    Dorig = datfile['Vis'].real
     uorig = datfile['u']
     vorig = datfile['v']
     rhoorig = np.sqrt(uorig**2. + vorig**2.)
-    Dwgt = datfile['Wgt']
+    Dwgt = datfile['Wgt'].real
     #Sigmainv = np.diag(Dwgt) #a little unnecessary
 
 
@@ -34,13 +34,18 @@ def deprojvis(visfilename, nvisbins):
         rhodeproj, Ddeproj, sigdeproj = deproject_vis([uorig, vorig, Dorig, Dwgt], incl=incl, PA=PA, offx=offx, offy=offy)
     D = Ddeproj
     rho = rhodeproj
-    Sigmainv = 1./sigdeproj**2.
+    Sigmainv = 1./np.square(sigdeproj.real)
+    #pdb.set_trace()
+
+    print 'Nvisbins', visbins.shape
+    print 'Rho', rho[1], rho[12], rhoorig[12]
+    print 'Sigmainv this round', Sigmainv[1], Sigmainv[12], ' wgt', Dwgt[12]
 
     return D, rho, Sigmainv, Dorig, rhoorig, Dwgt
 
 def main():
     visfile = 'DATA/fullA.vis.npz'
-    Dbin, rhobin, Sigmainvbin, Dorig1, rhoorig1, Dwgt1 = deprojvis(visfile, 10000)
+    Dbin, rhobin, Sigmainvbin, Dorig1, rhoorig1, Dwgt1 = deprojvis(visfile, 100)
     Dall, rhoall, Sigmainvall, Dorig2, rhoorig2, Dwgt2 = deprojvis(visfile, 0)
 
     #Test plots
