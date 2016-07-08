@@ -29,13 +29,12 @@ def main():
     nvisbins = 100 ##Set
     if (nvisbins>1):
         visbins = np.linspace(np.amin(rhoorig)/1000., np.amax(rhoorig)/1000., nvisbins)
-        rhodeproj, Ddeproj, sigdeproj = deproject_vis([uorig, vorig, Dorig, Dwgt], visbins, incl, PA, offx, offy)
+        rhodeproj, Ddeproj, sigdeproj = deproject_vis([uorig, vorig, Dorig, Dwgt], visbins, incl, PA, offx, offy, errtype='scat')
     else:
         rhodeproj, Ddeproj, sigdeproj = deproject_vis([uorig, vorig, Dorig, Dwgt], incl=incl, PA=PA, offx=offx, offy=offy)
-    D = Ddeproj
+    D = Ddeproj.real
     rho = rhodeproj
-    Sigmainv = np.diag(1./(np.square(sigdeproj.real) + np.square(sigdeproj.imag)*1j))
-    #np.absolute(sigdeproj))))
+    Sigmainv = np.diag(1./np.square(sigdeproj.real))
     #
     Ndata = D.size
     print 'Number of vis is', Ndata, np.shape(rho), np.shape(Sigmainv)
