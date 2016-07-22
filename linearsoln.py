@@ -22,48 +22,47 @@ def calccovar(binsin, ain, lin):
     return cov
 
 
-#We have Ndata data visibilities (D) that we'd like to solve for.
-#The covariance on the data is Sigma
+
 def main():
+    ##1 - Data setup
+    ##We have Ndata data visibilities (D), with covariance matrix Sigma
+
+    #1a. Read in visibility data
     visfilename = 'DATA/fullA_nf_discrete.vis.npz' ##Set
     datfile = np.load(visfilename)
-    datfile['u'], datfile['v'], datfile['Vis'], datfile['Wgt']
-
     Dorig = datfile['Vis']
     uorig = datfile['u']
     vorig = datfile['v']
     rhoorig = np.sqrt(uorig**2. + vorig**2.)
-    Dwgt = datfile['Wgt']
-    #Sigmainv = np.diag(Dwgt) #a little unnecessary
+    Dwgtorig = datfile['Wgt']
+    #Sigmainv = np.diag(Dwgtorig) #a little unnecessary
 
-
-
-    #Deproject the visibilities so that they're face-on
-    #If binning, set these equal to the binned values
-    incl = 50.
-    PA = 70.
-    offx = -0.3
-    offy = -0.2
-
-    visbins = np.arange(1., np.amax(rhoorig)/1000, 10)
+    #1b. Deproject (and optionally bin) the visibilities so that they're face-on
+    incl = 50. #deg
+    PA = 70. #deg
+    offx = -0.3 #arcsec
+    offy = -0.2 #arcsec
+    visbins = np.arange(1., np.amax(rhoorig)/1000, 10) #Visibility bins
     #nvisbins = 200 ##Set
     #if (nvisbins>1):
     #    visbins = np.linspace(np.amin(rhoorig)/1000., np.amax(rhoorig)/1000., nvisbins)
-    rhodeproj, Ddeproj, sigdeproj = deproject_vis([uorig, vorig, Dorig, Dwgt], visbins, incl, PA, offx, offy, errtype='scat')
+    rhodeproj, Ddeproj, sigdeproj = deproject_vis([uorig, vorig, Dorig, Dwgtorig], visbins, incl, PA, offx, offy, errtype='scat')
     #else:
-#        rhodeproj, Ddeproj, sigdeproj = deproject_vis([uorig, vorig, Dorig, Dwgt], incl=incl, PA=PA, offx=offx, offy=offy)
-    D = Ddeproj.real
+#        rhodeproj, Ddeproj, sigdeproj = deproject_vis([uorig, vorig, Dorig, Dwgtorig], incl=incl, PA=PA, offx=offx, offy=offy)
+
+    #1c. Set data variables (currently only using real parts)
     arcsec = 180./np.pi*3600.
+    D = Ddeproj.real
     rho = rhodeproj/arcsec #units of 1/arcsec
     Sigmainv = np.diag(1./np.square(sigdeproj.real))
-    #
     Ndata = D.size
     print 'Number of vis is', Ndata, np.shape(rho), np.shape(Sigmainv)
 
-    #We have a model visibility (M) which uses Nbins annuli
+    ##2 - Model Setup
+    ##We have a model visibility (M) which uses Nbins annuli
 
-    #Select model annuli radii
-    rmin = 0.01/140. #units of arcsec
+    #Select model annuli radii in arcsec
+    rmin = 0.01/140.
     rmax = 1.1
     Nbins = 40
     radii = np.linspace(rmin, rmax, num=Nbins+1) #Currently does NOT use rin
@@ -81,28 +80,25 @@ def main():
                 print 'c', rcenter[i], '  |Diff', (rright[i]*sc.j1(rho[j]*2.*np.pi*rright[i]) - rleft[i]*sc.j1(rho[j]*2.*np.pi*rleft[i]))
             X[j][i] = 1./rho[j]*(rright[i]*sc.j1(rho[j]*2.*np.pi*rright[i]) - rleft[i]*sc.j1(rho[j]*2.*np.pi*rleft[i]))
 
+    ##3 - Compute linear algebra
+
     #Calculate uniform prior mean and covariance matrix
     #The mean of the distribution with a uniform prior is wu, with covariance Cu
-
     Cu = np.dot(np.dot(X.T, Sigmainv), X)
     Cuinv = np.linalg.inv(Cu)
     wu = np.dot(Cuinv, np.dot(np.dot(X.T, Sigmainv), D))
 
-
-
     #Calculate the GP covariance matrix (Cw) from the kernel (k), with mean muw
     #The mean of the distribution with this prior is wgp, with variance Cgp
-
     gpa = .05 #Hyperparameter amplitude
     gpl = .15 #Hyperparameter lengthscale
+    #Cw = calccovar(rcenter, gpa, gpl)
+    Cwinv = np.linalg.inv(calccovar(rcenter, gpa, gpl))
+    #Cgpinv = Cuinv+Cwinv #Covariance matrix
+    #del Cgpinv
+    Cgp = np.linalg.inv(Cuinv+Cwinv)
 
-
-    Cw = calccovar(rcenter, gpa, gpl)
-    Cwinv = np.linalg.inv(Cw)
-    Cgpinv = Cuinv+Cwinv #Covariance matrix
-    Cgp = np.linalg.inv(Cgpinv)
-    del Cgpinv
-
+    #Calculate the mean to use, for now it's the truth
     flux = 0.12
     sig = 0.6
     incl = 50.
@@ -112,6 +108,7 @@ def main():
     nominal_SB = (sig/rcenter)**0.7 * np.exp(-(rcenter/sig)**2.5)	# fullA distribution
     int_SB = np.trapz(2.*np.pi*nominal_SB*rcenter, rcenter)		# a check on the total flux
     nominal_SB *= flux / int_SB
+
     muw = nominal_SB #Truth
     wgp = np.dot(Cgp,(np.dot(Cuinv, wu) + np.dot(Cwinv, muw))) #Mean
 
