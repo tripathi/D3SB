@@ -1,8 +1,10 @@
 import numpy as np
 import scipy.special as sc
+from scipy import stats
 import matplotlib.pyplot as plt
 import pdb
 from deprojectVis import deproject_vis
+from scipy.linalg import cho_factor, cho_solve
 
 #Squared exponential kernel
 def exp2kernel(i1, i2, ibins=None, a=None, l=None):
@@ -42,13 +44,16 @@ def main():
     PA = 70. #deg
     offx = -0.3 #arcsec
     offy = -0.2 #arcsec
-    visbins = np.arange(1., np.amax(rhoorig)/1000, 10) #Visibility bins
-    #nvisbins = 200 ##Set
-    #if (nvisbins>1):
-    #    visbins = np.linspace(np.amin(rhoorig)/1000., np.amax(rhoorig)/1000., nvisbins)
-    rhodeproj, Ddeproj, sigdeproj = deproject_vis([uorig, vorig, Dorig, Dwgtorig], visbins, incl, PA, offx, offy, errtype='scat')
-    #else:
-#        rhodeproj, Ddeproj, sigdeproj = deproject_vis([uorig, vorig, Dorig, Dwgtorig], incl=incl, PA=PA, offx=offx, offy=offy)
+    #visbins = np.arange(1., np.amax(rhoorig)/1000, 10) #Visibility bins
+    nvisbins = 200 ##Set
+    if (nvisbins>1):
+        #visbins = np.linspace(np.amin(rhoorig)/1000., np.amax(rhoorig)/1000., nvisbins)
+        #!!MAY NEED CHANGING!!
+        visbins = stats.mstats.mquantiles(rhoorig/1000, np.arange(20)/20.) #Changing the bins to have roughly even numbers of visibilities in each 
+        
+        rhodeproj, Ddeproj, sigdeproj = deproject_vis([uorig, vorig, Dorig, Dwgtorig], visbins, incl, PA, offx, offy, errtype='scat')
+    else:
+        rhodeproj, Ddeproj, sigdeproj = deproject_vis([uorig, vorig, Dorig, Dwgtorig], incl=incl, PA=PA, offx=offx, offy=offy)
 
     #1c. Set data variables (currently only using real parts)
     arcsec = 180./np.pi*3600.
@@ -74,19 +79,20 @@ def main():
     X = np.empty([Ndata,Nbins])
     for j in range(Ndata):
         for i in range(Nbins):
-            if (j<1):
-                print 'r', rright[i], '  |Right', rright[i]*sc.j1(rho[j]*2.*np.pi*rright[i])
-                print 'r', rleft[i], '   |Left', rleft[i]*sc.j1(rho[j]*2.*np.pi*rleft[i])
-                print 'c', rcenter[i], '  |Diff', (rright[i]*sc.j1(rho[j]*2.*np.pi*rright[i]) - rleft[i]*sc.j1(rho[j]*2.*np.pi*rleft[i]))
             X[j][i] = 1./rho[j]*(rright[i]*sc.j1(rho[j]*2.*np.pi*rright[i]) - rleft[i]*sc.j1(rho[j]*2.*np.pi*rleft[i]))
 
     ##3 - Compute linear algebra
+
 
     #Calculate uniform prior mean and covariance matrix
     #The mean of the distribution with a uniform prior is wu, with covariance Cu
     Cu = np.dot(np.dot(X.T, Sigmainv), X)
     Cuinv = np.linalg.inv(Cu)
-    wu = np.dot(Cuinv, np.dot(np.dot(X.T, Sigmainv), D))
+    #wu = np.dot(Cuinv, np.dot(np.dot(X.T, Sigmainv), D))
+    
+    #Alternate method without inverse
+    wu = np.linalg.solve(Cu, np.dot(np.dot(X.T, Sigmainv), D))
+    
 
     #Calculate the GP covariance matrix (Cw) from the kernel (k), with mean muw
     #The mean of the distribution with this prior is wgp, with variance Cgp
@@ -112,6 +118,23 @@ def main():
     muw = nominal_SB #Truth
     wgp = np.dot(Cgp,(np.dot(Cuinv, wu) + np.dot(Cwinv, muw))) #Mean
 
+    fig = plt.figure(1)
+    plt.plot(rho, D, '-k', label='Data')
+    plt.plot(rho, np.dot(X, nominal_SB), '-m', label= 'Truth')
+    plt.plot(rho, np.dot(X, wu), 'ob', label='Uniform prior')
+    #plt.plot(rho, np.dot(X, wgp), 'og', label='GP prior')
+    plt.legend()
+    plt.show(block=False)
+
+    fig = plt.figure(2)
+    plt.plot(rcenter, nominal_SB, '-k', label='Truth')
+    plt.plot(rcenter, wu,
+ 'ob', label='Uniform')
+    #plt.plot(rcenter, wgp, 'og', label='GP')
+    plt.legend()
+    plt.show(block=False)
+    
+    
     pdb.set_trace()
 
 
