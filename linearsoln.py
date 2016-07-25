@@ -88,7 +88,7 @@ def main():
     #The mean of the distribution with a uniform prior is wu, with covariance Cu
     Cu = np.dot(np.dot(X.T, Sigmainv), X)
     Cuinv = np.linalg.inv(Cu)
-    #wu = np.dot(Cuinv, np.dot(np.dot(X.T, Sigmainv), D))
+    wu0 = np.dot(Cuinv, np.dot(np.dot(X.T, Sigmainv), D))
     
     #Alternate method without inverse
     wu = np.linalg.solve(Cu, np.dot(np.dot(X.T, Sigmainv), D))
@@ -122,14 +122,15 @@ def main():
     plt.plot(rho, D, '-k', label='Data')
     plt.plot(rho, np.dot(X, nominal_SB), '-m', label= 'Truth')
     plt.plot(rho, np.dot(X, wu), 'ob', label='Uniform prior')
+    plt.plot(rho, np.dot(X, wu0), 'sg', label='Uniform prior (orig inv)')
     #plt.plot(rho, np.dot(X, wgp), 'og', label='GP prior')
     plt.legend()
     plt.show(block=False)
 
     fig = plt.figure(2)
     plt.plot(rcenter, nominal_SB, '-k', label='Truth')
-    plt.plot(rcenter, wu,
- 'ob', label='Uniform')
+    plt.plot(rcenter, wu, 'ob', label='Uniform')
+    plt.plot(rcenter, wu0, 'sg', label='Uniform orig inv')
     #plt.plot(rcenter, wgp, 'og', label='GP')
     plt.legend()
     plt.show(block=False)
