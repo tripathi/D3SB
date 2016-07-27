@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.special as sc
 from scipy import stats
+import scipy.linalg as scalg
 import matplotlib.pyplot as plt
 import pdb
 from deprojectVis import deproject_vis
@@ -10,7 +11,10 @@ from scipy.linalg import cho_factor, cho_solve
 def exp2kernel(i1, i2, ibins=None, a=None, l=None):
     ri = ibins[i1]
     rj = ibins[i2]
-    return a*a * np.exp(-((ri - rj)**2.)/(2.*l*l)) #Doesn't have nugget term
+    tol = 1e-6
+    nugget = np.zeros_like(ri)
+    nugget[(ri-rj)<tol] = 1e-16 #AD HOC!        
+    return a*a * np.exp(-((ri - rj)**2.)/(2.*l*l))+nugget
 
 #Covariance matrix for intensities
 def calccovar(binsin, ain, lin):
@@ -22,7 +26,6 @@ def calccovar(binsin, ain, lin):
     nbins = binsin.shape[0]
     cov = np.fromfunction(exp2kernel,(nbins,nbins), ibins=binsin, a=ain, l=lin, dtype = np.int)
     return cov
-
 
 
 def main():
@@ -45,12 +48,11 @@ def main():
     offx = -0.3 #arcsec
     offy = -0.2 #arcsec
     #visbins = np.arange(1., np.amax(rhoorig)/1000, 10) #Visibility bins
-    nvisbins = 200 ##Set
+    #nvisbins = 200 ##Set
     if (nvisbins>1):
         #visbins = np.linspace(np.amin(rhoorig)/1000., np.amax(rhoorig)/1000., nvisbins)
         #!!MAY NEED CHANGING!!
-        visbins = stats.mstats.mquantiles(rhoorig/1000, np.arange(20)/20.) #Changing the bins to have roughly even numbers of visibilities in each 
-        
+        visbins = stats.mstats.mquantiles(rhoorig/1000, np.arange(100)/100.) #Changing the bins to have roughly even numbers of visibilities in each        
         rhodeproj, Ddeproj, sigdeproj = deproject_vis([uorig, vorig, Dorig, Dwgtorig], visbins, incl, PA, offx, offy, errtype='scat')
     else:
         rhodeproj, Ddeproj, sigdeproj = deproject_vis([uorig, vorig, Dorig, Dwgtorig], incl=incl, PA=PA, offx=offx, offy=offy)
@@ -69,7 +71,7 @@ def main():
     #Select model annuli radii in arcsec
     rmin = 0.01/140.
     rmax = 1.1
-    Nbins = 40
+    Nbins = 30
     radii = np.linspace(rmin, rmax, num=Nbins+1) #Currently does NOT use rin
     rleft = radii[:-1]
     rright = radii[1:]
@@ -81,19 +83,18 @@ def main():
         for i in range(Nbins):
             X[j][i] = 1./rho[j]*(rright[i]*sc.j1(rho[j]*2.*np.pi*rright[i]) - rleft[i]*sc.j1(rho[j]*2.*np.pi*rleft[i]))
 
+            
     ##3 - Compute linear algebra
-
 
     #Calculate uniform prior mean and covariance matrix
     #The mean of the distribution with a uniform prior is wu, with covariance Cu
     Cu = np.dot(np.dot(X.T, Sigmainv), X)
     Cuinv = np.linalg.inv(Cu)
-    wu0 = np.dot(Cuinv, np.dot(np.dot(X.T, Sigmainv), D))
+    wu0 = np.dot(Cuinv, np.dot(np.dot(X.T, Sigmainv), D)) 
     
     #Alternate method without inverse
-    wu = np.linalg.solve(Cu, np.dot(np.dot(X.T, Sigmainv), D))
+    wu = np.linalg.solve(Cu, np.dot(np.dot(X.T, Sigmainv), D)) #better than wu0
     
-
     #Calculate the GP covariance matrix (Cw) from the kernel (k), with mean muw
     #The mean of the distribution with this prior is wgp, with variance Cgp
     gpa = .05 #Hyperparameter amplitude
@@ -116,30 +117,32 @@ def main():
     nominal_SB *= flux / int_SB
 
     muw = nominal_SB #Truth
-    wgp = np.dot(Cgp,(np.dot(Cuinv, wu) + np.dot(Cwinv, muw))) #Mean
+    wgp0 = np.dot(Cgp,(np.dot(Cuinv, wu) + np.dot(Cwinv, muw))) #Mean
 
+    #Alternative method to getting wgp
+    Cgpinv = np.linalg.solve(Cu, np.eye(Nbins) + np.dot(Cu, Cwinv))
+    Cuinvwu = np.linalg.solve(Cu, wu)
+    wgp = np.linalg.solve(Cgpinv, Cuinvwu + np.dot(Cwinv, muw))
+
+    
     fig = plt.figure(1)
     plt.plot(rho, D, '-k', label='Data')
     plt.plot(rho, np.dot(X, nominal_SB), '-m', label= 'Truth')
     plt.plot(rho, np.dot(X, wu), 'ob', label='Uniform prior')
-    plt.plot(rho, np.dot(X, wu0), 'sg', label='Uniform prior (orig inv)')
-    #plt.plot(rho, np.dot(X, wgp), 'og', label='GP prior')
+#    plt.plot(rho, np.dot(X, wu0), 'sg', label='Uniform prior (orig inv)', alpha=0.2)
+    plt.plot(rho, np.dot(X, wgp), 'or', label='GP prior')
     plt.legend()
     plt.show(block=False)
 
     fig = plt.figure(2)
     plt.plot(rcenter, nominal_SB, '-k', label='Truth')
     plt.plot(rcenter, wu, 'ob', label='Uniform')
-    plt.plot(rcenter, wu0, 'sg', label='Uniform orig inv')
-    #plt.plot(rcenter, wgp, 'og', label='GP')
+#    plt.plot(rcenter, wu0, 'sg', label='Uniform orig inv', alpha = 0.2)
+    plt.plot(rcenter, wgp, 'or', label='GP')
     plt.legend()
     plt.show(block=False)
-    
-    
+        
     pdb.set_trace()
-
-
-
 
     return
 
