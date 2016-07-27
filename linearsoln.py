@@ -48,7 +48,7 @@ def main():
     offx = -0.3 #arcsec
     offy = -0.2 #arcsec
     #visbins = np.arange(1., np.amax(rhoorig)/1000, 10) #Visibility bins
-    #nvisbins = 200 ##Set
+    nvisbins = 200 ##Set
     if (nvisbins>1):
         #visbins = np.linspace(np.amin(rhoorig)/1000., np.amax(rhoorig)/1000., nvisbins)
         #!!MAY NEED CHANGING!!
