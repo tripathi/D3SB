@@ -8,6 +8,8 @@ import pdb as pdb
 import numpy as np
 import matplotlib.pyplot as plt
 from astropy.io import fits
+from scipy import interpolate
+from scipy.signal import argrelmin
 
 #WARNING: PA and incl are in a different order than in MAIN functions
 
@@ -73,13 +75,62 @@ def sbmeanbin(rin, b, rpim, SBpim):
     """
     
     nbins = len(b)
+    cb = makebins(rin,b)
     SBdscp = np.zeros_like(b)
     SBstd = np.zeros_like(b)
     b = np.insert(b, 0, rin)    
     for i in range(nbins):
         SBdscp[i] = np.nanmean(SBpim[((rpim>b[i]) & (rpim<b[i+1]))])
         #Check that this needs to be a nanmean, rather than a mean >>
-        SBstd[i] = np.std(SBpim[((rpim>b[i]) & (rpim<b[i+1]))])
+        SBstd[i] = np.std(SBpim[((rpim>b[i]) & (rpim<b[i+1]))])    
+
+    #Efforts for gap initialization
+    pixsize = 0.01
+    rsmooth = np.arange(rin, np.amax(b),pixsize*1.5)
+    rfine = np.arange(rin, np.amax(b),pixsize)
+    SBsmooth = np.zeros_like(rsmooth)
+    for i in range(rsmooth.size-1):
+        SBsmooth[i] = np.nanmean(SBpim[((rpim>rsmooth[i]) & (rpim<rsmooth[i+1]))])
+
+    plt.loglog(rpim, SBpim, '.y')
+    #    plt.plot(cb, SBdscp, 'or')
+    cbsmooth = 0.5*(rsmooth[:-1]+rsmooth[1:])
+    plt.plot(cbsmooth, SBsmooth[:-1], '.c')
+
+    ci = argrelmin(SBsmooth)
+    plt.plot(rsmooth[ci], SBsmooth[ci], 'om')
+
+    # the brightness profile of the model
+    flux = 0.12
+    sig = 0.6
+    incl = 50.
+    PA = 70.
+    offx = -0.3
+    offy = -0.2
+    nominal_SB = (sig/rsmooth)**0.7 * np.exp(-(rsmooth/sig)**2.5)	# fullA distribution; where
+    # flux=0.12, sig=0.6, i=50, 
+    # PA = 70., offs=[-0.3, -0.2]
+    int_SB = np.trapz(2.*np.pi*nominal_SB*rsmooth, rsmooth)		# a check on the total flux
+    nominal_SB *= flux / int_SB
+    
+
+    #add in a resolved gap
+    gapcenter = 30./140.
+    gapwidth = 0.05
+    gapdepth = 0.5
+    # determine amplitude of gaussian
+    funca = interpolate.interp1d(rsmooth, nominal_SB)
+    gap_amp = gapdepth*funca(gapcenter)
+    gap_profile = gap_amp * np.exp(-0.5*(rsmooth-gapcenter)**2/gapwidth**2)
+    SB = nominal_SB - gap_profile
+
+    plt.plot(rsmooth, SB, '-k')
+
+    
+    #func = interpolate.interp1d(rsmooth, SBsmooth, kind='cubic')
+    #    SBfine = func(rfine)
+    #    plt.plot(rfine, SBfine, '-k', alpha = 0.8)
+    pdb.set_trace()
     return SBdscp, SBstd
 
 def sbguess(file, rin, b, PA=0., incl=0., offx=0., offy=0., plotting=0, freq=340e9, dsource = 140.):
