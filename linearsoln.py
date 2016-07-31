@@ -88,7 +88,7 @@ def main():
 
     #Calculate uniform prior mean and covariance matrix
     #The mean of the distribution with a uniform prior is wu, with covariance Cu
-    Cu = np.dot(np.dot(X.T, Sigmainv), X)
+    Cu = np.dot(np.dot(X.T, Sigmainv), X)+5*np.eye(Nbins)
     Cuinv = np.linalg.inv(Cu)
     wu0 = np.dot(Cuinv, np.dot(np.dot(X.T, Sigmainv), D)) 
     
