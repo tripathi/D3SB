@@ -86,16 +86,29 @@ def main():
             
     ##3 - Compute linear algebra
 
-    #Calculate uniform prior mean and covariance matrix
-    #The mean of the distribution with a uniform prior is wu, with covariance Cu
-    Cu = np.dot(np.dot(X.T, Sigmainv), X)+5*np.eye(Nrings)
+    #3a. Calculate uniform prior mean (wu) and covariance matrix (Cu)
+
+    Cuorig = np.dot(np.dot(X.T, Sigmainv), X)
+
+    #Add epsu to the diagonal of the matrix to make it more numerically stable
+    print 'Cu condition number ', np.linalg.cond(Cuorig)
+    epsu = 10**(int(np.log10(np.amin(np.diag(Cuorig))))-2) ##Can Set
+    Cu = Cuorig + epsu*np.eye(Nrings)
+    print 'Min (Cu diag)', np.amin(np.diag(Cuorig))
+    print 'Eps', epsu
+    print 'Cu new condition number ', np.linalg.cond(Cu)
+    
+    #Calculate wu in one of two ways
+    # Method 1: With the inverse    
     Cuinv = np.linalg.inv(Cu)
-    wu0 = np.dot(Cuinv, np.dot(np.dot(X.T, Sigmainv), D)) 
+    wu0 = np.dot(Cuinv, np.dot(np.dot(X.T, Sigmainv), D))     
+    # Method 2: Without inverse
+    wu = np.linalg.solve(Cu, np.dot(np.dot(X.T, Sigmainv), D))
+    print 'Max difference btwn 2 methods for wu', np.amax(np.fabs(wu-wu0))
     
-    #Alternate method without inverse
-    wu = np.linalg.solve(Cu, np.dot(np.dot(X.T, Sigmainv), D)) #better than wu0
+    pdb.set_trace()
     
-    #Calculate the GP covariance matrix (Cw) from the kernel (k), with mean muw
+    #3b. Calculate the GP covariance matrix (Cw) from the kernel (k), with mean muw
     #The mean of the distribution with this prior is wgp, with variance Cgp
     gpa = .05 #Hyperparameter amplitude
     gpl = .15 #Hyperparameter lengthscale
