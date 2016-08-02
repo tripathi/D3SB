@@ -66,21 +66,21 @@ def main():
     print 'Number of vis is', Ndata, np.shape(rho), np.shape(Sigmainv)
 
     ##2 - Model Setup
-    ##We have a model visibility (M) which uses Nbins annuli
+    ##We have a model visibility (M) which uses Nrings annuli
 
     #Select model annuli radii in arcsec
     rmin = 0.01/140.
     rmax = 1.1
-    Nbins = 30
-    radii = np.linspace(rmin, rmax, num=Nbins+1) #Currently does NOT use rin
+    Nrings = 30
+    radii = np.linspace(rmin, rmax, num=Nrings+1) #Currently does NOT use rin
     rleft = radii[:-1]
     rright = radii[1:]
     rcenter = (rleft+rright)/2.
 
     #M=Xw, where X is only a function of the bins and baselines
-    X = np.empty([Ndata,Nbins])
+    X = np.empty([Ndata,Nrings])
     for j in range(Ndata):
-        for i in range(Nbins):
+        for i in range(Nrings):
             X[j][i] = 1./rho[j]*(rright[i]*sc.j1(rho[j]*2.*np.pi*rright[i]) - rleft[i]*sc.j1(rho[j]*2.*np.pi*rleft[i]))
 
             
@@ -88,7 +88,7 @@ def main():
 
     #Calculate uniform prior mean and covariance matrix
     #The mean of the distribution with a uniform prior is wu, with covariance Cu
-    Cu = np.dot(np.dot(X.T, Sigmainv), X)+5*np.eye(Nbins)
+    Cu = np.dot(np.dot(X.T, Sigmainv), X)+5*np.eye(Nrings)
     Cuinv = np.linalg.inv(Cu)
     wu0 = np.dot(Cuinv, np.dot(np.dot(X.T, Sigmainv), D)) 
     
@@ -120,7 +120,7 @@ def main():
     wgp0 = np.dot(Cgp,(np.dot(Cuinv, wu) + np.dot(Cwinv, muw))) #Mean
 
     #Alternative method to getting wgp
-    Cgpinv = np.linalg.solve(Cu, np.eye(Nbins) + np.dot(Cu, Cwinv))
+    Cgpinv = np.linalg.solve(Cu, np.eye(Nrings) + np.dot(Cu, Cwinv))
     Cuinvwu = np.linalg.solve(Cu, wu)
     wgp = np.linalg.solve(Cgpinv, Cuinvwu + np.dot(Cwinv, muw))
 
