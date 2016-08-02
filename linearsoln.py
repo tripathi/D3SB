@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pdb
 from deprojectVis import deproject_vis
 from scipy.linalg import cho_factor, cho_solve
+import time
 
 #Squared exponential kernel
 def exp2kernel(i1, i2, ibins=None, a=None, l=None):
@@ -29,6 +30,11 @@ def calccovar(binsin, ain, lin):
 
 
 def main():
+
+    #Flags to adjust
+    plotdebug = False
+
+    
     ##1 - Data setup
     ##We have Ndata data visibilities (D), with covariance matrix Sigma
 
@@ -147,17 +153,18 @@ def main():
     Cuinvwu = np.linalg.solve(Cu, wu)
     wgp = np.linalg.solve(Cgpinv, Cuinvwu + np.dot(Cwinv, muw))
 
-    fig = plt.figure(0)
-    plt.subplot(121)
-    plt.imshow(np.dot(Cgp, Cgpinv0))
-    plt.title('Testing inv method: Cgp*Cgpinv')
-    plt.colorbar()
-
-    plt.subplot(122)
-    plt.plot(rcenter, wu, '-k')
-    plt.plot(rcenter, np.dot(Cu, Cuinvwu), 'ob')
-    plt.title('Testing solve method: wu')
-
+    if (plotdebug):
+        fig = plt.figure(0)
+        plt.subplot(121)
+        plt.imshow(np.dot(Cgp, Cgpinv0))
+        plt.title('Testing inv method: Cgp*Cgpinv')
+        plt.colorbar()
+    
+        plt.subplot(122)
+        plt.plot(rcenter, wu, '-k')
+        plt.plot(rcenter, np.dot(Cu, Cuinvwu), 'ob')
+        plt.title('Testing solve method: wu')
+        
     #4 Evaluate output
 
     #4a Plot output directly
@@ -186,9 +193,28 @@ def main():
 
 
     #4b Draws from the posteriors
+    tic = time.time()
+    gpdraws = np.random.multivariate_normal(wgp, Cgp, size=1000) #Choice of Cgp matters (this from method 0)
+    toc = time.time()
+    print 'GP draws took', round((toc-tic)/60., 3)
+    post = np.percentile(gpdraws, [16, 50, 84], axis=0)
+    loerr = post[1]-post[0]
+    hierr = post[2]-post[1]
+    
+        
     fig4 = plt.figure(3)
     plt.title('Draws from wgp')
-    this = np.random.multivariate_normal(wgp, Cgp, size=10000)
+    plt.ylabel('SB [Jy/arcsec^2]')
+    plt.xlabel('Angle [arcsec]') 
+    for draw in gpdraws:
+        plt.plot(rcenter, draw, '-y', alpha = 0.1)
+    plt.plot(rcenter, nominal_SB, '-k')
+    plt.plot(rcenter, wgp, 'ob', alpha = 0.2)
+    plt.errorbar(rcenter, post[1], xerr = rright-rleft, yerr = [loerr, hierr], fmt='ob')
+    ax = plt.gca()
+    ax.set_yscale('log')
+    ax.set_xscale('log')
+    plt.xlim(.9*rcenter[0], 1.1*rmax)
     
     
     plt.show()
