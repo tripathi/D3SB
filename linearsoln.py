@@ -138,7 +138,7 @@ def main():
     #3c. Calculate GP prior mean (wgp) and covariance matrix (Cgp)
     
     #Method 1: With the inverse
-    Cgpinv = Cuinv+Cwinv #Covariance matrix
+    Cgpinv0 = Cuinv+Cwinv #Covariance matrix
     Cgp = np.linalg.inv(Cuinv+Cwinv)
     wgp0 = np.dot(Cgp,(np.dot(Cuinv, wu0) + np.dot(Cwinv, muw)))
 
@@ -147,24 +147,51 @@ def main():
     Cuinvwu = np.linalg.solve(Cu, wu)
     wgp = np.linalg.solve(Cgpinv, Cuinvwu + np.dot(Cwinv, muw))
 
-    pdb.set_trace()
-    
-    fig = plt.figure(1)
+    fig = plt.figure(0)
+    plt.subplot(121)
+    plt.imshow(np.dot(Cgp, Cgpinv0))
+    plt.title('Testing inv method: Cgp*Cgpinv')
+    plt.colorbar()
+
+    plt.subplot(122)
+    plt.plot(rcenter, wu, '-k')
+    plt.plot(rcenter, np.dot(Cu, Cuinvwu), 'ob')
+    plt.title('Testing solve method: wu')
+
+    #4 Evaluate output
+
+    #4a Plot output directly
+    #Plot visibilities
+    fig2 = plt.figure(1)
     plt.plot(rho, D, '-k', label='Data')
     plt.plot(rho, np.dot(X, nominal_SB), '-m', label= 'Truth')
-    plt.plot(rho, np.dot(X, wu), 'ob', label='Uniform prior')
-#    plt.plot(rho, np.dot(X, wu0), 'sg', label='Uniform prior (orig inv)', alpha=0.2)
-    plt.plot(rho, np.dot(X, wgp), 'or', label='GP prior')
+    plt.plot(rho, np.dot(X, wu0), 'sc', label='Uniform prior (inv)', alpha = 0.5)
+    plt.plot(rho, np.dot(X, wu), 'ob', label='Uniform prior (solve)')
+    plt.plot(rho, np.dot(X, wgp0), 'sm', label='GP prior (inv)', alpha = 0.5)
+    plt.plot(rho, np.dot(X, wgp), 'or', label='GP prior (solve)')
+    plt.ylabel('Visibility [Jy]')
+    plt.xlabel('Rho [1/arcsec]') 
     plt.legend()
-    plt.show(block=False)
 
-    fig = plt.figure(2)
+    #Plot SB
+    fig3 = plt.figure(2)
     plt.plot(rcenter, nominal_SB, '-k', label='Truth')
-    plt.plot(rcenter, wu, 'ob', label='Uniform')
-#    plt.plot(rcenter, wu0, 'sg', label='Uniform orig inv', alpha = 0.2)
-    plt.plot(rcenter, wgp, 'or', label='GP')
+    plt.plot(rcenter, wu0, 'sc', label='Uniform (inv)', alpha = 0.5)
+    plt.plot(rcenter, wu, 'ob', label='Uniform (solve)')
+    plt.plot(rcenter, wgp0, 'sm', label='GP (inv)', alpha = 0.5)
+    plt.plot(rcenter, wgp, 'or', label='GP (solve)')
+    plt.ylabel('SB [Jy/arcsec^2]')
+    plt.xlabel('Angle [arcsec]') 
     plt.legend()
-    plt.show(block=False)
+
+
+    #4b Draws from the posteriors
+    fig4 = plt.figure(3)
+    plt.title('Draws from wgp')
+    this = np.random.multivariate_normal(wgp, Cgp, size=10000)
+    
+    
+    plt.show()
         
     pdb.set_trace()
 
