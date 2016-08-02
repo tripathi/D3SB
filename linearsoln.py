@@ -8,6 +8,8 @@ from deprojectVis import deproject_vis
 from scipy.linalg import cho_factor, cho_solve
 import time
 
+plt.style.use('mystyle')
+
 #Squared exponential kernel
 def exp2kernel(i1, i2, ibins=None, a=None, l=None):
     ri = ibins[i1]
@@ -33,6 +35,7 @@ def main():
 
     #Flags to adjust
     plotdebug = False
+    plotinv = False
 
     
     ##1 - Data setup
@@ -54,11 +57,11 @@ def main():
     offx = -0.3 #arcsec
     offy = -0.2 #arcsec
     #visbins = np.arange(1., np.amax(rhoorig)/1000, 10) #Visibility bins
-    nvisbins = 200 ##Set
+    nvisbins = 100. ##Set
     if (nvisbins>1):
         #visbins = np.linspace(np.amin(rhoorig)/1000., np.amax(rhoorig)/1000., nvisbins)
         #!!MAY NEED CHANGING!!
-        visbins = stats.mstats.mquantiles(rhoorig/1000, np.arange(100)/100.) #Changing the bins to have roughly even numbers of visibilities in each        
+        visbins = stats.mstats.mquantiles(rhoorig/1000, np.arange(nvisbins)/nvisbins) #Changing the bins to have roughly even numbers of visibilities in each        
         rhodeproj, Ddeproj, sigdeproj = deproject_vis([uorig, vorig, Dorig, Dwgtorig], visbins, incl, PA, offx, offy, errtype='scat')
     else:
         rhodeproj, Ddeproj, sigdeproj = deproject_vis([uorig, vorig, Dorig, Dwgtorig], incl=incl, PA=PA, offx=offx, offy=offy)
@@ -172,9 +175,11 @@ def main():
     fig2 = plt.figure(1)
     plt.plot(rho, D, '-k', label='Data')
     plt.plot(rho, np.dot(X, nominal_SB), '-m', label= 'Truth')
-    plt.plot(rho, np.dot(X, wu0), 'sc', label='Uniform prior (inv)', alpha = 0.5)
+    if (plotinv):
+        plt.plot(rho, np.dot(X, wu0), 'sc', label='Uniform prior (inv)', alpha = 0.5)
     plt.plot(rho, np.dot(X, wu), 'ob', label='Uniform prior (solve)')
-    plt.plot(rho, np.dot(X, wgp0), 'sm', label='GP prior (inv)', alpha = 0.5)
+    if (plotinv):
+        plt.plot(rho, np.dot(X, wgp0), 'sm', label='GP prior (inv)', alpha = 0.5)
     plt.plot(rho, np.dot(X, wgp), 'or', label='GP prior (solve)')
     plt.ylabel('Visibility [Jy]')
     plt.xlabel('Rho [1/arcsec]') 
@@ -183,9 +188,11 @@ def main():
     #Plot SB
     fig3 = plt.figure(2)
     plt.plot(rcenter, nominal_SB, '-k', label='Truth')
-    plt.plot(rcenter, wu0, 'sc', label='Uniform (inv)', alpha = 0.5)
+    if (plotinv):
+        plt.plot(rcenter, wu0, 'sc', label='Uniform (inv)', alpha = 0.5)
     plt.plot(rcenter, wu, 'ob', label='Uniform (solve)')
-    plt.plot(rcenter, wgp0, 'sm', label='GP (inv)', alpha = 0.5)
+    if (plotinv):
+        plt.plot(rcenter, wgp0, 'sm', label='GP (inv)', alpha = 0.5)
     plt.plot(rcenter, wgp, 'or', label='GP (solve)')
     plt.ylabel('SB [Jy/arcsec^2]')
     plt.xlabel('Angle [arcsec]') 
@@ -193,24 +200,23 @@ def main():
 
 
     #4b Draws from the posteriors
-    tic = time.time()
-    gpdraws = np.random.multivariate_normal(wgp, Cgp, size=1000) #Choice of Cgp matters (this from method 0)
-    toc = time.time()
-    print 'GP draws took', round((toc-tic)/60., 3)
+    #tic = time.time()
+    gpdraws = np.random.multivariate_normal(wgp, Cgp, size=5000) #Choice of Cgp matters (this from method 0)
+    #toc = time.time()
+    #print 'GP draws took', round((toc-tic)/60., 3)
     post = np.percentile(gpdraws, [16, 50, 84], axis=0)
     loerr = post[1]-post[0]
     hierr = post[2]-post[1]
-    
         
     fig4 = plt.figure(3)
     plt.title('Draws from wgp')
     plt.ylabel('SB [Jy/arcsec^2]')
     plt.xlabel('Angle [arcsec]') 
     for draw in gpdraws:
-        plt.plot(rcenter, draw, '-y', alpha = 0.1)
-    plt.plot(rcenter, nominal_SB, '-k')
-    plt.plot(rcenter, wgp, 'ob', alpha = 0.2)
-    plt.errorbar(rcenter, post[1], xerr = rright-rleft, yerr = [loerr, hierr], fmt='ob')
+        plt.plot(rcenter, draw, '-y', alpha = 0.1, zorder=1)
+    plt.plot(rcenter, nominal_SB, '-k', zorder=2)
+    plt.plot(rcenter, wgp, 'ob', zorder=3)
+    plt.errorbar(rcenter, post[1], yerr = [loerr, hierr], fmt='or', elinewidth=2, zorder=4, alpha = 0.5)
     ax = plt.gca()
     ax.set_yscale('log')
     ax.set_xscale('log')
