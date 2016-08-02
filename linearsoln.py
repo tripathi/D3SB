@@ -11,10 +11,10 @@ from scipy.linalg import cho_factor, cho_solve
 def exp2kernel(i1, i2, ibins=None, a=None, l=None):
     ri = ibins[i1]
     rj = ibins[i2]
-    tol = 1e-6
-    nugget = np.zeros_like(ri)
-    nugget[(ri-rj)<tol] = 1e-16 #AD HOC!        
-    return a*a * np.exp(-((ri - rj)**2.)/(2.*l*l))+nugget
+#    tol = 1e-6
+#    nugget = np.zeros_like(ri)
+#    nugget[(ri-rj)<tol] = 1e-16 #AD HOC!        
+    return a*a * np.exp(-((ri - rj)**2.)/(2.*l*l))#+nugget
 
 #Covariance matrix for intensities
 def calccovar(binsin, ain, lin):
@@ -106,13 +106,23 @@ def main():
     wu = np.linalg.solve(Cu, np.dot(np.dot(X.T, Sigmainv), D))
     print 'Max difference btwn 2 methods for wu', np.amax(np.fabs(wu-wu0))
     
-    pdb.set_trace()
     
     #3b. Calculate the GP covariance matrix (Cw) from the kernel (k), with mean muw
-    #The mean of the distribution with this prior is wgp, with variance Cgp
     gpa = .05 #Hyperparameter amplitude
     gpl = .15 #Hyperparameter lengthscale
-    #Cw = calccovar(rcenter, gpa, gpl)
+    Cworig = calccovar(rcenter, gpa, gpl)
+    print 'Cw condition number ', np.linalg.cond(Cworig)
+    
+    #Add nugget to diagonal to make it more numerically stable
+    epsw = np.amin(Cworig)
+    Cw = Cworig + epsw*np.eye(Nrings)
+    print 'Min(Cw), Min (Cw diag)', np.amin(Cworig), np.amin(np.diag(Cworig))
+    print 'Eps', epsw
+    print 'Cw new condition number ', np.linalg.cond(Cw)
+
+    pdb.set_trace()
+
+
     Cwinv = np.linalg.inv(calccovar(rcenter, gpa, gpl))
     #Cgpinv = Cuinv+Cwinv #Covariance matrix
     #del Cgpinv
@@ -130,6 +140,9 @@ def main():
     nominal_SB *= flux / int_SB
 
     muw = nominal_SB #Truth
+
+
+    #The mean of the distribution with this prior is wgp, with variance Cgp
     wgp0 = np.dot(Cgp,(np.dot(Cuinv, wu) + np.dot(Cwinv, muw))) #Mean
 
     #Alternative method to getting wgp
