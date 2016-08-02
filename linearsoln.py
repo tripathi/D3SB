@@ -102,7 +102,7 @@ def main():
     # Method 1: With the inverse    
     Cuinv = np.linalg.inv(Cu)
     wu0 = np.dot(Cuinv, np.dot(np.dot(X.T, Sigmainv), D))     
-    # Method 2: Without inverse
+    # Method 2: Solve without inverse
     wu = np.linalg.solve(Cu, np.dot(np.dot(X.T, Sigmainv), D))
     print 'Max difference btwn 2 methods for wu', np.amax(np.fabs(wu-wu0))
     
@@ -110,23 +110,6 @@ def main():
     #3b. Calculate the GP covariance matrix (Cw) from the kernel (k), with mean muw
     gpa = .05 #Hyperparameter amplitude
     gpl = .15 #Hyperparameter lengthscale
-    Cworig = calccovar(rcenter, gpa, gpl)
-    print 'Cw condition number ', np.linalg.cond(Cworig)
-    
-    #Add nugget to diagonal to make it more numerically stable
-    epsw = np.amin(Cworig)
-    Cw = Cworig + epsw*np.eye(Nrings)
-    print 'Min(Cw), Min (Cw diag)', np.amin(Cworig), np.amin(np.diag(Cworig))
-    print 'Eps', epsw
-    print 'Cw new condition number ', np.linalg.cond(Cw)
-
-    pdb.set_trace()
-
-
-    Cwinv = np.linalg.inv(calccovar(rcenter, gpa, gpl))
-    #Cgpinv = Cuinv+Cwinv #Covariance matrix
-    #del Cgpinv
-    Cgp = np.linalg.inv(Cuinv+Cwinv)
 
     #Calculate the mean to use, for now it's the truth
     flux = 0.12
@@ -138,18 +121,33 @@ def main():
     nominal_SB = (sig/rcenter)**0.7 * np.exp(-(rcenter/sig)**2.5)	# fullA distribution
     int_SB = np.trapz(2.*np.pi*nominal_SB*rcenter, rcenter)		# a check on the total flux
     nominal_SB *= flux / int_SB
-
     muw = nominal_SB #Truth
 
+    #Calculate the covariance matrix
+    Cworig = calccovar(rcenter, gpa, gpl)
+    print 'Cw condition number ', np.linalg.cond(Cworig)
+    
+    #Add nugget to diagonal to make it more numerically stable
+    epsw = np.amin(Cworig)
+    Cw = Cworig + epsw*np.eye(Nrings)
+    print 'Min(Cw), Min (Cw diag)', np.amin(Cworig), np.amin(np.diag(Cworig))
+    print 'Eps', epsw
+    print 'Cw new condition number ', np.linalg.cond(Cw)
+    Cwinv = np.linalg.inv(Cw)
 
-    #The mean of the distribution with this prior is wgp, with variance Cgp
-    wgp0 = np.dot(Cgp,(np.dot(Cuinv, wu) + np.dot(Cwinv, muw))) #Mean
+    #3c. Calculate GP prior mean (wgp) and covariance matrix (Cgp)
+    
+    #Method 1: With the inverse
+    Cgpinv = Cuinv+Cwinv #Covariance matrix
+    Cgp = np.linalg.inv(Cuinv+Cwinv)
+    wgp0 = np.dot(Cgp,(np.dot(Cuinv, wu0) + np.dot(Cwinv, muw)))
 
-    #Alternative method to getting wgp
+    #Method 2: Solve without inverse
     Cgpinv = np.linalg.solve(Cu, np.eye(Nrings) + np.dot(Cu, Cwinv))
     Cuinvwu = np.linalg.solve(Cu, wu)
     wgp = np.linalg.solve(Cgpinv, Cuinvwu + np.dot(Cwinv, muw))
 
+    pdb.set_trace()
     
     fig = plt.figure(1)
     plt.plot(rho, D, '-k', label='Data')
