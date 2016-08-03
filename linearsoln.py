@@ -7,8 +7,9 @@ import pdb
 from deprojectVis import deproject_vis
 from scipy.linalg import cho_factor, cho_solve
 import time
+from scipy.optimize import minimize
 
-plt.style.use('mystyle')
+#plt.style.use('mystyle')
 
 #Squared exponential kernel
 def exp2kernel(i1, i2, ibins=None, a=None, l=None):
@@ -223,38 +224,91 @@ def main():
 
     #4b Draws from the posteriors
     #tic = time.time()
-    gpdraws = np.random.multivariate_normal(wgp, Cgp, size=5000) #Choice of Cgp matters (this from method 0)
-    #toc = time.time()
-    #print 'GP draws took', round((toc-tic)/60., 3)
-    post = np.percentile(gpdraws, [16, 50, 84], axis=0)
-    loerr = post[1]-post[0]
-    hierr = post[2]-post[1]
+    ## gpdraws = np.random.multivariate_normal(wgp, Cgp, size=5000) #Choice of Cgp matters (this from method 0)
+    ## #toc = time.time()
+    ## #print 'GP draws took', round((toc-tic)/60., 3)
+    ## post = np.percentile(gpdraws, [16, 50, 84], axis=0)
+    ## loerr = post[1]-post[0]
+    ## hierr = post[2]-post[1]
 
-    if (plotting):        
-        fig4 = plt.figure(3)
-        plt.title('Draws from wgp')
-        plt.ylabel('SB [Jy/arcsec^2]')
-        plt.xlabel('Angle [arcsec]')
-        plt.plot(rcenter, gpdraws[0], '-y', label='Draws')
-        for draw in gpdraws:
-            plt.plot(rcenter, draw, '-y', alpha = 0.1, zorder=1)
-        plt.plot(rcenter, nominal_SB, '-k', zorder=2, label='Truth')
-        plt.plot(rcenter, wgp, 'ob', zorder=3, label='wgp')
-        plt.errorbar(rcenter, post[1], yerr = [loerr, hierr], fmt='or', elinewidth=2, zorder=4, alpha = 0.5, label='Posterior quantiles')
-        ax = plt.gca()
-        ax.set_yscale('log')
-        ax.set_xscale('log')
-        plt.xlim(.9*rcenter[0], 1.1*rmax)
-        plt.legend(loc='best')
+    ## if (plotting):        
+    ##     fig4 = plt.figure(3)
+    ##     plt.title('Draws from wgp')
+    ##     plt.ylabel('SB [Jy/arcsec^2]')
+    ##     plt.xlabel('Angle [arcsec]')
+    ##     plt.plot(rcenter, gpdraws[0], '-y', label='Draws')
+    ##     for draw in gpdraws:
+    ##         plt.plot(rcenter, draw, '-y', alpha = 0.1, zorder=1)
+    ##     plt.plot(rcenter, nominal_SB, '-k', zorder=2, label='Truth')
+    ##     plt.plot(rcenter, wgp, 'ob', zorder=3, label='wgp')
+    ##     plt.errorbar(rcenter, post[1], yerr = [loerr, hierr], fmt='or', elinewidth=2, zorder=4, alpha = 0.5, label='Posterior quantiles')
+    ##     ax = plt.gca()
+    ##     ax.set_yscale('log')
+    ##     ax.set_xscale('log')
+    ##     plt.xlim(.9*rcenter[0], 1.1*rmax)
+    ##     plt.legend(loc='best')
     
     #plt.show()
 
 
     #5 Optimize hyperparameters
-    print calcZ([gpa, gpl], rcenter)
+    #    print calcZ([gpa, gpl], rcenter)
+    thetaguess = np.array([gpa,gpl])
+    opt = minimize(calcZ, thetaguess, args=(rcenter), method='Nelder-Mead', tol=1e-6)
+    print opt.x
+
+    #Calculate the covariance matrix
+    nCworig = calccovar(rcenter, opt.x[0], opt.x[1])
+    print 'Cw condition number ', np.linalg.cond(nCworig)
     
+    #Add nugget to diagonal to make it more numerically stable
+    nepsw = np.amin(nCworig)
+    nCw = nCworig + epsw*np.eye(Nrings)
+    print 'Min(Cw), Min (Cw diag)', np.amin(nCworig), np.amin(np.diag(nCworig))
+    print 'Eps', nepsw
+    print 'Cw new condition number ', np.linalg.cond(nCw)
+    nCwinv = np.linalg.inv(nCw)
 
+    #3c. again Calculate GP prior mean (wgp) and covariance matrix (Cgp)
 
+    #Method 2: Solve without inverse
+    nCgpinv = np.linalg.solve(Cu, np.eye(Nrings) + np.dot(Cu, nCwinv))
+    nCuinvwu = np.linalg.solve(Cu, wu)
+    nwgp = np.linalg.solve(nCgpinv, nCuinvwu + np.dot(nCwinv, muw))
+
+    ## plt.plot(rcenter, nominal_SB, '-k', label='Truth')
+    ## plt.plot(rcenter, wu, 'ob', label='Uniform (solve)', alpha = 0.6)
+    ## plt.plot(rcenter, wgp, 'or', label='GP (solve)')
+    ## plt.plot(rcenter, nwgp, 'og', label='GP (hyperparam)')
+    ## plt.ylabel('SB [Jy/arcsec^2]')
+    ## plt.xlabel('Angle [arcsec]') 
+    ## plt.legend()    
+
+    nCgp = np.linalg.inv(Cuinv+nCwinv)
+    gpdraws = np.random.multivariate_normal(nwgp, nCgp, size=5000) #Choice of Cgp matters (this from method 0)
+    #toc = time.time()
+    #print 'GP draws took', round((toc-tic)/60., 3)
+    post = np.percentile(gpdraws, [16, 50, 84], axis=0)
+    loerr = post[1]-post[0]
+    hierr = post[2]-post[1]
+       
+    fig4 = plt.figure(3)
+    plt.title('Draws from wgp')
+    plt.ylabel('SB [Jy/arcsec^2]')
+    plt.xlabel('Angle [arcsec]')
+    plt.plot(rcenter, gpdraws[0], '-y', label='Draws')
+    for draw in gpdraws:
+            plt.plot(rcenter, draw, '-y', alpha = 0.1, zorder=1)
+    plt.plot(rcenter, nominal_SB, '-k', zorder=2, label='Truth')
+    plt.plot(rcenter, wgp, 'ob', zorder=3, label='wgp')
+    plt.plot(rcenter, nwgp, 'og', zorder=4, label='nwgp')
+    plt.errorbar(rcenter, post[1], yerr = [loerr, hierr], fmt='or', elinewidth=2, zorder=4, alpha = 0.5, label='Posterior quantiles')
+    ax = plt.gca()
+    ax.set_yscale('log')
+    ax.set_xscale('log')
+    plt.xlim(.9*rcenter[0], 1.1*rmax)
+    plt.legend(loc='best')
+    
     pdb.set_trace()
 
     return
