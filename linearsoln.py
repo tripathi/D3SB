@@ -117,8 +117,8 @@ def main():
     
     
     #3b. Calculate the GP covariance matrix (Cw) from the kernel (k), with mean muw
-    gpa = .05 #Hyperparameter amplitude
-    gpl = .15 #Hyperparameter lengthscale
+    gpa = .1 #Hyperparameter amplitude
+    gpl = .02 #Hyperparameter lengthscale
 
     #Calculate the mean to use, for now it's the truth
     flux = 0.12
@@ -211,17 +211,18 @@ def main():
     fig4 = plt.figure(3)
     plt.title('Draws from wgp')
     plt.ylabel('SB [Jy/arcsec^2]')
-    plt.xlabel('Angle [arcsec]') 
+    plt.xlabel('Angle [arcsec]')
+    plt.plot(rcenter, gpdraws[0], '-y', label='Draws')
     for draw in gpdraws:
         plt.plot(rcenter, draw, '-y', alpha = 0.1, zorder=1)
-    plt.plot(rcenter, nominal_SB, '-k', zorder=2)
-    plt.plot(rcenter, wgp, 'ob', zorder=3)
-    plt.errorbar(rcenter, post[1], yerr = [loerr, hierr], fmt='or', elinewidth=2, zorder=4, alpha = 0.5)
+    plt.plot(rcenter, nominal_SB, '-k', zorder=2, label='Truth')
+    plt.plot(rcenter, wgp, 'ob', zorder=3, label='wgp')
+    plt.errorbar(rcenter, post[1], yerr = [loerr, hierr], fmt='or', elinewidth=2, zorder=4, alpha = 0.5, label='Posterior quantiles')
     ax = plt.gca()
     ax.set_yscale('log')
     ax.set_xscale('log')
     plt.xlim(.9*rcenter[0], 1.1*rmax)
-    
+    plt.legend(loc='best')
     
     plt.show()
         
