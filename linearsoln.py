@@ -30,10 +30,28 @@ def calccovar(binsin, ain, lin):
     cov = np.fromfunction(exp2kernel,(nbins,nbins), ibins=binsin, a=ain, l=lin, dtype = np.int)
     return cov
 
+#Calculate the evidence as a function of GP amplitude and length
+#See Kaisey OneNote from 6/22/16
+def calcZ(theta, cb):    
+    #Nrings, D, sigma and X are global vars.
+
+    if (Nrings - cb.size) > 1e-6: print 'Size mismatch \n'
+    ggpa = theta[0]
+    ggpl = theta[1]
+    Corig = calccovar(cb, ggpa, ggpl)
+    C = Corig + np.amin(Corig)*np.eye(Nrings) #Add nugget term for stability, changes based on params.
+    K = Sigma + np.dot(np.dot(X,C),np.transpose(X))
+    print 'K cond no. ', np.linalg.cond(K)
+    (sign,logdet) = np.linalg.slogdet(2.*np.pi*K)
+    logZ = -.5*(logdet+np.dot(np.dot(np.transpose(D),np.linalg.inv(K)),D))
+    if (sign<0): print "Warning, negative determinant"
+    return logZ
+
 
 def main():
 
     #Flags to adjust
+    plotting = False
     plotdebug = False
     plotinv = False
 
@@ -68,8 +86,10 @@ def main():
 
     #1c. Set data variables (currently only using real parts)
     arcsec = 180./np.pi*3600.
+    global D, Sigma, X
     D = Ddeproj.real
     rho = rhodeproj/arcsec #units of 1/arcsec
+    Sigma = np.diag(np.square(sigdeproj.real))
     Sigmainv = np.diag(1./np.square(sigdeproj.real))
     Ndata = D.size
     print 'Number of vis is', Ndata, np.shape(rho), np.shape(Sigmainv)
@@ -80,6 +100,7 @@ def main():
     #Select model annuli radii in arcsec
     rmin = 0.01/140.
     rmax = 1.1
+    global Nrings
     Nrings = 30
     radii = np.linspace(rmin, rmax, num=Nrings+1) #Currently does NOT use rin
     rleft = radii[:-1]
@@ -172,31 +193,32 @@ def main():
 
     #4a Plot output directly
     #Plot visibilities
-    fig2 = plt.figure(1)
-    plt.plot(rho, D, '-k', label='Data')
-    plt.plot(rho, np.dot(X, nominal_SB), '-m', label= 'Truth')
-    if (plotinv):
-        plt.plot(rho, np.dot(X, wu0), 'sc', label='Uniform prior (inv)', alpha = 0.5)
-    plt.plot(rho, np.dot(X, wu), 'ob', label='Uniform prior (solve)')
-    if (plotinv):
-        plt.plot(rho, np.dot(X, wgp0), 'sm', label='GP prior (inv)', alpha = 0.5)
-    plt.plot(rho, np.dot(X, wgp), 'or', label='GP prior (solve)')
-    plt.ylabel('Visibility [Jy]')
-    plt.xlabel('Rho [1/arcsec]') 
-    plt.legend()
+    if (plotting):
+        fig2 = plt.figure(1)
+        plt.plot(rho, D, '-k', label='Data')
+        plt.plot(rho, np.dot(X, nominal_SB), '-m', label= 'Truth')
+        if (plotinv):
+            plt.plot(rho, np.dot(X, wu0), 'sc', label='Uniform prior (inv)', alpha = 0.5)
+        plt.plot(rho, np.dot(X, wu), 'ob', label='Uniform prior (solve)')
+        if (plotinv):
+            plt.plot(rho, np.dot(X, wgp0), 'sm', label='GP prior (inv)', alpha = 0.5)
+        plt.plot(rho, np.dot(X, wgp), 'or', label='GP prior (solve)')
+        plt.ylabel('Visibility [Jy]')
+        plt.xlabel('Rho [1/arcsec]') 
+        plt.legend()
 
-    #Plot SB
-    fig3 = plt.figure(2)
-    plt.plot(rcenter, nominal_SB, '-k', label='Truth')
-    if (plotinv):
-        plt.plot(rcenter, wu0, 'sc', label='Uniform (inv)', alpha = 0.5)
-    plt.plot(rcenter, wu, 'ob', label='Uniform (solve)')
-    if (plotinv):
-        plt.plot(rcenter, wgp0, 'sm', label='GP (inv)', alpha = 0.5)
-    plt.plot(rcenter, wgp, 'or', label='GP (solve)')
-    plt.ylabel('SB [Jy/arcsec^2]')
-    plt.xlabel('Angle [arcsec]') 
-    plt.legend()
+        #Plot SB
+        fig3 = plt.figure(2)
+        plt.plot(rcenter, nominal_SB, '-k', label='Truth')
+        if (plotinv):
+            plt.plot(rcenter, wu0, 'sc', label='Uniform (inv)', alpha = 0.5)
+        plt.plot(rcenter, wu, 'ob', label='Uniform (solve)')
+        if (plotinv):
+            plt.plot(rcenter, wgp0, 'sm', label='GP (inv)', alpha = 0.5)
+        plt.plot(rcenter, wgp, 'or', label='GP (solve)')
+        plt.ylabel('SB [Jy/arcsec^2]')
+        plt.xlabel('Angle [arcsec]') 
+        plt.legend()
 
 
     #4b Draws from the posteriors
@@ -207,25 +229,32 @@ def main():
     post = np.percentile(gpdraws, [16, 50, 84], axis=0)
     loerr = post[1]-post[0]
     hierr = post[2]-post[1]
-        
-    fig4 = plt.figure(3)
-    plt.title('Draws from wgp')
-    plt.ylabel('SB [Jy/arcsec^2]')
-    plt.xlabel('Angle [arcsec]')
-    plt.plot(rcenter, gpdraws[0], '-y', label='Draws')
-    for draw in gpdraws:
-        plt.plot(rcenter, draw, '-y', alpha = 0.1, zorder=1)
-    plt.plot(rcenter, nominal_SB, '-k', zorder=2, label='Truth')
-    plt.plot(rcenter, wgp, 'ob', zorder=3, label='wgp')
-    plt.errorbar(rcenter, post[1], yerr = [loerr, hierr], fmt='or', elinewidth=2, zorder=4, alpha = 0.5, label='Posterior quantiles')
-    ax = plt.gca()
-    ax.set_yscale('log')
-    ax.set_xscale('log')
-    plt.xlim(.9*rcenter[0], 1.1*rmax)
-    plt.legend(loc='best')
+
+    if (plotting):        
+        fig4 = plt.figure(3)
+        plt.title('Draws from wgp')
+        plt.ylabel('SB [Jy/arcsec^2]')
+        plt.xlabel('Angle [arcsec]')
+        plt.plot(rcenter, gpdraws[0], '-y', label='Draws')
+        for draw in gpdraws:
+            plt.plot(rcenter, draw, '-y', alpha = 0.1, zorder=1)
+        plt.plot(rcenter, nominal_SB, '-k', zorder=2, label='Truth')
+        plt.plot(rcenter, wgp, 'ob', zorder=3, label='wgp')
+        plt.errorbar(rcenter, post[1], yerr = [loerr, hierr], fmt='or', elinewidth=2, zorder=4, alpha = 0.5, label='Posterior quantiles')
+        ax = plt.gca()
+        ax.set_yscale('log')
+        ax.set_xscale('log')
+        plt.xlim(.9*rcenter[0], 1.1*rmax)
+        plt.legend(loc='best')
     
-    plt.show()
-        
+    #plt.show()
+
+
+    #5 Optimize hyperparameters
+    print calcZ([gpa, gpl], rcenter)
+    
+
+
     pdb.set_trace()
 
     return
