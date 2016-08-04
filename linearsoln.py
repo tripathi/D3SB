@@ -8,6 +8,7 @@ from deprojectVis import deproject_vis
 from scipy.linalg import cho_factor, cho_solve
 import time
 from scipy.optimize import minimize
+import d3sbfxns as f
 
 #plt.style.use('mystyle')
 
@@ -42,7 +43,6 @@ def calcZ(theta, cb):
     Corig = calccovar(cb, ggpa, ggpl)
     C = Corig + np.amin(Corig)*np.eye(Nrings) #Add nugget term for stability, changes based on params.
     K = Sigma + np.dot(np.dot(X,C),np.transpose(X))
-    print 'K cond no. ', np.linalg.cond(K)
     (sign,logdet) = np.linalg.slogdet(2.*np.pi*K)
     logZ = -.5*(logdet+np.dot(np.dot(np.transpose(D),np.linalg.inv(K)),D))
     if (sign<0): print "Warning, negative determinant"
@@ -52,7 +52,7 @@ def calcZ(theta, cb):
 def main():
 
     #Flags to adjust
-    plotting = False
+    plotting = True
     plotdebug = False
     plotinv = False
 
@@ -151,8 +151,17 @@ def main():
     offy = -0.2
     nominal_SB = (sig/rcenter)**0.7 * np.exp(-(rcenter/sig)**2.5)	# fullA distribution
     int_SB = np.trapz(2.*np.pi*nominal_SB*rcenter, rcenter)		# a check on the total flux
-    nominal_SB *= flux / int_SB
-    muw = nominal_SB #Truth
+    nominal_SB *= flux / int_SB #Truth
+
+
+    #Image mean
+    synthimg = 'DATA/fullA.image.fits'
+    rsb, sb, beaminfo = f.sbdata(synthimg, PA, incl, offx, offy)
+    sbbin, sigmabin = f.sbmeanbin(rleft[0], rright, rsb, sb)
+
+    
+    
+    muw = np.zeros_like(nominal_SB) #Mean zero
 
     #Calculate the covariance matrix
     Cworig = calccovar(rcenter, gpa, gpl)
@@ -211,6 +220,7 @@ def main():
         #Plot SB
         fig3 = plt.figure(2)
         plt.plot(rcenter, nominal_SB, '-k', label='Truth')
+        plt.plot(rcenter, muw, 'xk', label='Mean')
         if (plotinv):
             plt.plot(rcenter, wu0, 'sc', label='Uniform (inv)', alpha = 0.5)
         plt.plot(rcenter, wu, 'ob', label='Uniform (solve)')
@@ -303,6 +313,7 @@ def main():
     plt.plot(rcenter, wgp, 'ob', zorder=3, label='wgp')
     plt.plot(rcenter, nwgp, 'og', zorder=4, label='nwgp')
     plt.errorbar(rcenter, post[1], yerr = [loerr, hierr], fmt='or', elinewidth=2, zorder=4, alpha = 0.5, label='Posterior quantiles')
+    plt.plot(rcenter, muw, 'xk', zorder = 5, label='Image mean')
     ax = plt.gca()
     ax.set_yscale('log')
     ax.set_xscale('log')
