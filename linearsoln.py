@@ -38,10 +38,17 @@ def calccovar(binsin, ain, lin):
 #See Kaisey OneNote from 6/22/16
 def calcZ(theta, cb):    
     #Nrings, D, sigma and X are global vars.
-
+    
     if (Nrings - cb.size) > 1e-6: print 'Size mismatch \n'
-    ggpa = theta[0]
+    ggpa = 10**theta[0]
     ggpl = theta[1]
+
+    if (theta[0] < 0):
+        return -np.inf
+
+    if (ggpl < 0):
+        return -np.inf
+    
     Corig = calccovar(cb, ggpa, ggpl)
     C = Corig + np.amin(Corig)*np.eye(Nrings) #Add nugget term for stability, changes based on params.
     K = Sigma + np.dot(np.dot(X,C),np.transpose(X))
@@ -53,7 +60,7 @@ def calcZ(theta, cb):
 def initgpa(params, nwalkers):
     #This is specific to GP amplitude, not generic parameters
     tmp = np.zeros((nwalkers,2))
-    tmp[:,0] = np.random.uniform(0,100*params[0],nwalkers)
+    tmp[:,0] = np.random.uniform(-15,1,nwalkers)
     tmp[:,1] = params[1]*(1+np.random.uniform(-0.5,0.5,nwalkers))
     return tmp
 
@@ -189,8 +196,8 @@ def main():
     
     
     #3b. Calculate the GP covariance matrix (Cw) from the kernel (k), with mean muw
-    gpa = .1 #Hyperparameter amplitude
-    gpl = .02 #Hyperparameter lengthscale
+    gpa = .8 #Hyperparameter amplitude
+    gpl = .04 #Hyperparameter lengthscale
 
     #Calculate the mean to use, for now it's the truth
     flux = 0.12
@@ -211,7 +218,7 @@ def main():
 
     
     
-    muw = np.zeros_like(nominal_SB) #Mean zero
+    muw = sbbin #Mean zero
 
     #Calculate the covariance matrix
     Cworig = calccovar(rcenter, gpa, gpl)
@@ -310,7 +317,8 @@ def main():
     
     #plt.show()
 
-
+    pdb.set_trace()
+    
     #5 Optimize hyperparameters
     #    print calcZ([gpa, gpl], rcenter)
     thetaguess = np.array([gpa,gpl])
