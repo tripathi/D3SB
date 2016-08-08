@@ -9,6 +9,8 @@ from scipy.linalg import cho_factor, cho_solve
 import time
 from scipy.optimize import minimize
 import d3sbfxns as f
+import emcee
+from datetime import datetime
 
 #plt.style.use('mystyle')
 
@@ -48,11 +50,59 @@ def calcZ(theta, cb):
     if (sign<0): print "Warning, negative determinant"
     return logZ
 
+def initgpa(params, nwalkers):
+    #This is specific to GP amplitude, not generic parameters
+    tmp = np.zeros((nwalkers,2))
+    tmp[:,0] = np.random.uniform(0,100*params[0],nwalkers)
+    tmp[:,1] = params[1]*(1+np.random.uniform(-0.5,0.5,nwalkers))
+    return tmp
+
+def runemcee(pin, cb, nsteps, nthreads, savename, meanw):
+    """
+    Run emcee
+    :param pin: Parameters
+    :param nsteps: Number of MCMC steps to take
+    :param savename: Output file name prefix
+    :param meanw: Mean to use for covariance
+    """
+    #Number of parameters and walkers, set by p0
+    ndim = 2#np.shape(pin)[1]
+    nwalkers = 100#ndim * 4
+    
+    #Initialize GP param walkers
+    p0 = initgpa(pin, nwalkers)
+    
+    #Setup sampler
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, calcZ, threads=nthreads, args=[cb])
+
+    #Write log file
+    f = open('linearsoln.log', 'a')
+    FORMAT = '%m-%d-%Y-%H%M'
+    f.write(savename+', '+str(ndim)+', '+str(nsteps)+', '+datetime.now().strftime(FORMAT))
+
+    #Run emcee, and time it
+    tic = time.time()
+    sampler.run_mcmc(p0, nsteps)
+    toc = time.time()
+
+    #Display and record run information
+    print 'Elapsed emcee run time:', ((toc-tic)/60.)
+    print 'Acceptance:', sampler.acceptance_fraction
+    f.write(' ,'+str(round((toc-tic)/60., 2))+', '+str(np.round(np.mean(sampler.acceptance_fraction),2))+'\n')
+    f.close()
+
+    #Save the results in a binary file
+    np.save('mc_'+savename,sampler.chain)
+
+    print 'Done with this emcee run'
+
+    return sampler.chain
+
 
 def main():
 
     #Flags to adjust
-    plotting = True
+    plotting = False
     plotdebug = False
     plotinv = False
 
@@ -266,6 +316,18 @@ def main():
     thetaguess = np.array([gpa,gpl])
     opt = minimize(calcZ, thetaguess, args=(rcenter), method='Nelder-Mead', tol=1e-6)
     print opt.x
+
+    
+    #6 Optimize with emcee
+#
+    nsteps = 17000
+    nthreads = 12
+    print 'Going to start emcee'
+    notes = raw_input('Notes? Only give a short phrase to append to filenames\n')
+    savename = notes+'_'+str(Nrings)
+    chain1 = runemcee([gpa, gpl], rcenter, nsteps, nthreads, savename,muw)
+
+    pdb.set_trace()
 
     #Calculate the covariance matrix
     nCworig = calccovar(rcenter, opt.x[0], opt.x[1])
