@@ -60,7 +60,7 @@ def calcZ(theta, cb):
 def initgpa(params, nwalkers):
     #This is specific to GP amplitude, not generic parameters
     tmp = np.zeros((nwalkers,2))
-    tmp[:,0] = np.random.uniform(-15,1,nwalkers)
+    tmp[:,0] = np.random.uniform(-9,1,nwalkers)
     tmp[:,1] = params[1]*(1+np.random.uniform(-0.5,0.5,nwalkers))
     return tmp
 
