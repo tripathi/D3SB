@@ -43,7 +43,7 @@ def calcZ(theta, cb):
     ggpa = 10**theta[0]
     ggpl = theta[1]
 
-    if (theta[0] < 0):
+    if (ggpa < 0):
         return -np.inf
 
     if (ggpl < 0):
@@ -53,7 +53,7 @@ def calcZ(theta, cb):
     C = Corig + np.amin(Corig)*np.eye(Nrings) #Add nugget term for stability, changes based on params.
     K = Sigma + np.dot(np.dot(X,C),np.transpose(X))
     (sign,logdet) = np.linalg.slogdet(2.*np.pi*K)
-    logZ = -.5*(logdet+np.dot(np.dot(np.transpose(D),np.linalg.inv(K)),D))
+    logZ = -.5*(logdet+np.dot(np.dot(np.transpose(D-np.dot(X, muw)),np.linalg.inv(K)),(D-np.dot(X, muw))))
     if (sign<0): print "Warning, negative determinant"
     return logZ
 
@@ -109,8 +109,8 @@ def runemcee(pin, cb, nsteps, nthreads, savename, meanw):
 def main():
 
     #Flags to adjust
-    plotting = False
-    plotdebug = False
+    plotting = True
+    plotdebug = True
     plotinv = False
 
     
@@ -176,22 +176,22 @@ def main():
 
     #3a. Calculate uniform prior mean (wu) and covariance matrix (Cu)
 
-    Cuorig = np.dot(np.dot(X.T, Sigmainv), X)
+    Cuinvorig = np.dot(np.dot(X.T, Sigmainv), X)
 
     #Add epsu to the diagonal of the matrix to make it more numerically stable
-    print 'Cu condition number ', np.linalg.cond(Cuorig)
-    epsu = 10**(int(np.log10(np.amin(np.diag(Cuorig))))-2) ##Can Set
-    Cu = Cuorig + epsu*np.eye(Nrings)
-    print 'Min (Cu diag)', np.amin(np.diag(Cuorig))
+    print 'Cuinv condition number ', np.linalg.cond(Cuinvorig)
+    epsu = 10**(int(np.log10(np.amin(np.diag(Cuinvorig))))-2) ##Can Set
+    Cuinv = Cuinvorig + epsu*np.eye(Nrings)
+    print 'Min (Cu diag)', np.amin(np.diag(Cuinvorig))
     print 'Eps', epsu
-    print 'Cu new condition number ', np.linalg.cond(Cu)
+    print 'Cu new condition number ', np.linalg.cond(Cuinv)
     
     #Calculate wu in one of two ways
     # Method 1: With the inverse    
-    Cuinv = np.linalg.inv(Cu)
-    wu0 = np.dot(Cuinv, np.dot(np.dot(X.T, Sigmainv), D))     
+    Cu = np.linalg.inv(Cuinv)
+    wu0 = np.dot(Cu, np.dot(np.dot(X.T, Sigmainv), D))     
     # Method 2: Solve without inverse
-    wu = np.linalg.solve(Cu, np.dot(np.dot(X.T, Sigmainv), D))
+    wu = np.linalg.solve(Cuinv, np.dot(np.dot(X.T, Sigmainv), D))
     print 'Max difference btwn 2 methods for wu', np.amax(np.fabs(wu-wu0))
     
     
@@ -217,7 +217,7 @@ def main():
     sbbin, sigmabin = f.sbmeanbin(rleft[0], rright, rsb, sb)
 
     
-    
+    global muw
     muw = sbbin #Mean zero
 
     #Calculate the covariance matrix
@@ -235,14 +235,14 @@ def main():
     #3c. Calculate GP prior mean (wgp) and covariance matrix (Cgp)
     
     #Method 1: With the inverse
-    Cgpinv0 = Cuinv+Cwinv #Covariance matrix
-    Cgp = np.linalg.inv(Cuinv+Cwinv)
-    wgp0 = np.dot(Cgp,(np.dot(Cuinv, wu0) + np.dot(Cwinv, muw)))
+    Cgpinv0 = Cuinvorig+Cwinv #Covariance matrix
+    Cgp = np.linalg.inv(Cuinvorig+Cwinv)
+    #    wgp0 = np.dot(Cgp,(np.dot(Cuinvorig, wu0) + np.dot(Cwinv, muw)))
 
     #Method 2: Solve without inverse
-    Cgpinv = np.linalg.solve(Cu, np.eye(Nrings) + np.dot(Cu, Cwinv))
-    Cuinvwu = np.linalg.solve(Cu, wu)
-    wgp = np.linalg.solve(Cgpinv, Cuinvwu + np.dot(Cwinv, muw))
+    #    Cgpinv = np.linalg.solve(Cu, np.eye(Nrings) + np.dot(Cu, Cwinv))
+    #    Cuinvwu = np.linalg.solve(Cu, wu)
+    wgp = np.linalg.solve(Cgpinv0, np.dot(Cuinvorig,wu) + np.dot(Cwinv, muw))
 
     if (plotdebug):
         fig = plt.figure(0)
@@ -251,10 +251,10 @@ def main():
         plt.title('Testing inv method: Cgp*Cgpinv')
         plt.colorbar()
     
-        plt.subplot(122)
-        plt.plot(rcenter, wu, '-k')
-        plt.plot(rcenter, np.dot(Cu, Cuinvwu), 'ob')
-        plt.title('Testing solve method: wu')
+        #        plt.subplot(122)
+        #plt.plot(rcenter, wu, '-k')
+        #plt.plot(rcenter, np.dot(Cu, Cuinvwu), 'ob')
+        #plt.title('Testing solve method: wu')
         
     #4 Evaluate output
 
@@ -317,13 +317,13 @@ def main():
     
     #plt.show()
 
-    pdb.set_trace()
+    #    pdb.set_trace()
     
     #5 Optimize hyperparameters
     #    print calcZ([gpa, gpl], rcenter)
     thetaguess = np.array([gpa,gpl])
     opt = minimize(calcZ, thetaguess, args=(rcenter), method='Nelder-Mead', tol=1e-6)
-    print opt.x
+    print opt
 
     
     #6 Optimize with emcee
@@ -337,40 +337,40 @@ def main():
 
     pdb.set_trace()
 
-    #Calculate the covariance matrix
-    nCworig = calccovar(rcenter, opt.x[0], opt.x[1])
-    print 'Cw condition number ', np.linalg.cond(nCworig)
+    ## #Calculate the covariance matrix
+    ## nCworig = calccovar(rcenter, opt.x[0], opt.x[1])
+    ## print 'Cw condition number ', np.linalg.cond(nCworig)
     
-    #Add nugget to diagonal to make it more numerically stable
-    nepsw = np.amin(nCworig)
-    nCw = nCworig + epsw*np.eye(Nrings)
-    print 'Min(Cw), Min (Cw diag)', np.amin(nCworig), np.amin(np.diag(nCworig))
-    print 'Eps', nepsw
-    print 'Cw new condition number ', np.linalg.cond(nCw)
-    nCwinv = np.linalg.inv(nCw)
+    ## #Add nugget to diagonal to make it more numerically stable
+    ## nepsw = np.amin(nCworig)
+    ## nCw = nCworig + epsw*np.eye(Nrings)
+    ## print 'Min(Cw), Min (Cw diag)', np.amin(nCworig), np.amin(np.diag(nCworig))
+    ## print 'Eps', nepsw
+    ## print 'Cw new condition number ', np.linalg.cond(nCw)
+    ## nCwinv = np.linalg.inv(nCw)
 
-    #3c. again Calculate GP prior mean (wgp) and covariance matrix (Cgp)
+    ## #3c. again Calculate GP prior mean (wgp) and covariance matrix (Cgp)
 
-    #Method 2: Solve without inverse
-    nCgpinv = np.linalg.solve(Cu, np.eye(Nrings) + np.dot(Cu, nCwinv))
-    nCuinvwu = np.linalg.solve(Cu, wu)
-    nwgp = np.linalg.solve(nCgpinv, nCuinvwu + np.dot(nCwinv, muw))
+    ## #Method 2: Solve without inverse
+    ## nCgpinv = np.linalg.solve(Cu, np.eye(Nrings) + np.dot(Cu, nCwinv))
+    ## nCuinvwu = np.linalg.solve(Cu, wu)
+    ## nwgp = np.linalg.solve(nCgpinv, nCuinvwu + np.dot(nCwinv, muw))
 
-    ## plt.plot(rcenter, nominal_SB, '-k', label='Truth')
-    ## plt.plot(rcenter, wu, 'ob', label='Uniform (solve)', alpha = 0.6)
-    ## plt.plot(rcenter, wgp, 'or', label='GP (solve)')
-    ## plt.plot(rcenter, nwgp, 'og', label='GP (hyperparam)')
-    ## plt.ylabel('SB [Jy/arcsec^2]')
-    ## plt.xlabel('Angle [arcsec]') 
-    ## plt.legend()    
+    ## ## plt.plot(rcenter, nominal_SB, '-k', label='Truth')
+    ## ## plt.plot(rcenter, wu, 'ob', label='Uniform (solve)', alpha = 0.6)
+    ## ## plt.plot(rcenter, wgp, 'or', label='GP (solve)')
+    ## ## plt.plot(rcenter, nwgp, 'og', label='GP (hyperparam)')
+    ## ## plt.ylabel('SB [Jy/arcsec^2]')
+    ## ## plt.xlabel('Angle [arcsec]') 
+    ## ## plt.legend()    
 
-    nCgp = np.linalg.inv(Cuinv+nCwinv)
-    gpdraws = np.random.multivariate_normal(nwgp, nCgp, size=5000) #Choice of Cgp matters (this from method 0)
-    #toc = time.time()
-    #print 'GP draws took', round((toc-tic)/60., 3)
-    post = np.percentile(gpdraws, [16, 50, 84], axis=0)
-    loerr = post[1]-post[0]
-    hierr = post[2]-post[1]
+    ## nCgp = np.linalg.inv(Cuinv+nCwinv)
+    ## gpdraws = np.random.multivariate_normal(nwgp, nCgp, size=5000) #Choice of Cgp matters (this from method 0)
+    ## #toc = time.time()
+    ## #print 'GP draws took', round((toc-tic)/60., 3)
+    ## post = np.percentile(gpdraws, [16, 50, 84], axis=0)
+    ## loerr = post[1]-post[0]
+    ## hierr = post[2]-post[1]
        
     fig4 = plt.figure(3)
     plt.title('Draws from wgp')
