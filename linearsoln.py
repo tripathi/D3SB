@@ -8,7 +8,7 @@ from deprojectVis import deproject_vis
 from scipy.linalg import cho_factor, cho_solve
 import time
 from scipy.optimize import minimize
-import d3sbfxns as f
+import d3sbfxns as f #Package together
 import emcee
 from datetime import datetime
 
@@ -59,6 +59,7 @@ def calcZ(theta, cb):
         return -np.inf
     return logZ
 
+#Initialize walkers
 def initgpa(params, nwalkers):
     #This is specific to GP amplitude, not generic parameters
     tmp = np.zeros((nwalkers,2))
