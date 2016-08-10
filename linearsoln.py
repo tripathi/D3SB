@@ -40,13 +40,13 @@ def calcZ(theta, cb):
     #Nrings, D, sigma and X are global vars.
     
     if (Nrings - cb.size) > 1e-6: print 'Size mismatch \n'
-    ggpa = 10**theta[0]
+    ggpa = 10.**theta[0]
     ggpl = theta[1]
 
-    if (ggpa < 0):
+    if (ggpa < 0) or (ggpa > 10):
         return -np.inf
 
-    if (ggpl < 0):
+    if (ggpl < 0) or (ggpl > (cb[-1]-cb[0])):
         return -np.inf
     
     Corig = calccovar(cb, ggpa, ggpl)
@@ -54,13 +54,15 @@ def calcZ(theta, cb):
     K = Sigma + np.dot(np.dot(X,C),np.transpose(X))
     (sign,logdet) = np.linalg.slogdet(2.*np.pi*K)
     logZ = -.5*(logdet+np.dot(np.dot(np.transpose(D-np.dot(X, muw)),np.linalg.inv(K)),(D-np.dot(X, muw))))
-    if (sign<0): print "Warning, negative determinant"
+    if (sign<0): 
+        print "Warning, negative determinant with (A,l)", ggpa, ggpl 
+        return -np.inf
     return logZ
 
 def initgpa(params, nwalkers):
     #This is specific to GP amplitude, not generic parameters
     tmp = np.zeros((nwalkers,2))
-    tmp[:,0] = np.random.uniform(-9,1,nwalkers)
+    tmp[:,0] = np.random.uniform(-2,0,nwalkers)
     tmp[:,1] = params[1]*(1+np.random.uniform(-0.5,0.5,nwalkers))
     return tmp
 
@@ -196,8 +198,8 @@ def main():
     
     
     #3b. Calculate the GP covariance matrix (Cw) from the kernel (k), with mean muw
-    gpa = .8 #Hyperparameter amplitude
-    gpl = .04 #Hyperparameter lengthscale
+    gpa = .078 #Hyperparameter amplitude
+    gpl = .017 #Hyperparameter lengthscale
 
     #Calculate the mean to use, for now it's the truth
     flux = 0.12
@@ -290,7 +292,7 @@ def main():
 
 
     #4b Draws from the posteriors
-    #tic = time.time()
+    # tic = time.time()
     ## gpdraws = np.random.multivariate_normal(wgp, Cgp, size=5000) #Choice of Cgp matters (this from method 0)
     ## #toc = time.time()
     ## #print 'GP draws took', round((toc-tic)/60., 3)
@@ -315,15 +317,14 @@ def main():
     ##     plt.xlim(.9*rcenter[0], 1.1*rmax)
     ##     plt.legend(loc='best')
     
-    #plt.show()
 
-    #    pdb.set_trace()
+    #pdb.set_trace()
     
     #5 Optimize hyperparameters
     #    print calcZ([gpa, gpl], rcenter)
-    thetaguess = np.array([gpa,gpl])
-    opt = minimize(calcZ, thetaguess, args=(rcenter), method='Nelder-Mead', tol=1e-6)
-    print opt
+ #   thetaguess = np.array([gpa,gpl])
+#    opt = minimize(calcZ, thetaguess, args=(rcenter), method='Nelder-Mead', tol=1e-6)
+#    print opt
 
     
     #6 Optimize with emcee
