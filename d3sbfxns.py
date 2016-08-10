@@ -92,13 +92,13 @@ def sbmeanbin(rin, b, rpim, SBpim):
     for i in range(rsmooth.size-1):
         SBsmooth[i] = np.nanmean(SBpim[((rpim>rsmooth[i]) & (rpim<rsmooth[i+1]))])
 
-    plt.loglog(rpim, SBpim, '.y')
+#    plt.loglog(rpim, SBpim, '.y')
     #    plt.plot(cb, SBdscp, 'or')
     cbsmooth = 0.5*(rsmooth[:-1]+rsmooth[1:])
-    plt.plot(cbsmooth, SBsmooth[:-1], '.c')
+#    plt.plot(cbsmooth, SBsmooth[:-1], '.c')
 
     ci = argrelmin(SBsmooth)
-    plt.plot(rsmooth[ci], SBsmooth[ci], 'om')
+#    plt.plot(rsmooth[ci], SBsmooth[ci], 'om')
 
     # the brightness profile of the model
     flux = 0.12
@@ -124,13 +124,13 @@ def sbmeanbin(rin, b, rpim, SBpim):
     gap_profile = gap_amp * np.exp(-0.5*(rsmooth-gapcenter)**2/gapwidth**2)
     SB = nominal_SB - gap_profile
 
-    plt.plot(rsmooth, SB, '-k')
+#    plt.plot(rsmooth, SB, '-k')
 
     
     #func = interpolate.interp1d(rsmooth, SBsmooth, kind='cubic')
     #    SBfine = func(rfine)
     #    plt.plot(rfine, SBfine, '-k', alpha = 0.8)
-    pdb.set_trace()
+#    pdb.set_trace()
     return SBdscp, SBstd
 
 def sbguess(file, rin, b, PA=0., incl=0., offx=0., offy=0., plotting=0, freq=340e9, dsource = 140.):
