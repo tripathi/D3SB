@@ -113,7 +113,7 @@ def main():
 
     #Flags to adjust
     plotting = True
-    plotdebug = True
+    plotdebug = False
     plotinv = False
 
     
@@ -245,7 +245,7 @@ def main():
     #Method 2: Solve without inverse
     #    Cgpinv = np.linalg.solve(Cu, np.eye(Nrings) + np.dot(Cu, Cwinv))
     #    Cuinvwu = np.linalg.solve(Cu, wu)
-    wgp = np.linalg.solve(Cgpinv0, np.dot(Cuinvorig,wu) + np.dot(Cwinv, muw))
+    wgp = np.linalg.solve(Cgpinv0, np.dot(np.dot(X.T, Sigmainv), D) + np.dot(Cwinv, muw))
 
     if (plotdebug):
         fig = plt.figure(0)
@@ -319,7 +319,7 @@ def main():
     ##     plt.legend(loc='best')
     
 
-    #pdb.set_trace()
+    pdb.set_trace()
     
     #5 Optimize hyperparameters
     #    print calcZ([gpa, gpl], rcenter)
