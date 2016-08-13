@@ -162,7 +162,7 @@ def main():
     rmin = 0.01/140.
     rmax = 1.1
     global Nrings
-    Nrings = 30
+    Nrings = 40
     radii = np.linspace(rmin, rmax, num=Nrings+1) #Currently does NOT use rin
     rleft = radii[:-1]
     rright = radii[1:]
